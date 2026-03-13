@@ -233,3 +233,272 @@ curl -s -o response.json httpbin.org/get
 ```
 **Output**:
 (No terminal output. The file `response.json` is created with the response content.)
+
+---
+
+## 11. HEAD Request
+**Description**: Performs an HTTP HEAD request to fetch only the headers of a resource without the body, using the `-I` flag.
+**Input**:
+```bash
+curl -s -I httpbin.org/get
+```
+**Output**:
+```text
+HTTP/1.1 200 OK
+Date: Fri, 13 Mar 2026 12:14:15 GMT
+Content-Type: application/json
+Content-Length: 253
+Connection: keep-alive
+Server: gunicorn/19.9.0
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Credentials: true
+```
+
+---
+
+## 12. Custom HTTP Method
+**Description**: Uses a specific HTTP method for the request (e.g., DELETE, PUT, PATCH) using the `-X` flag.
+**Input**:
+```bash
+curl -s -X DELETE httpbin.org/delete
+```
+**Output**:
+```json
+{
+  "args": {},
+  "data": "",
+  "files": {},
+  "form": {},
+  "headers": {
+    "Accept": "*/*",
+    "Host": "httpbin.org",
+    "User-Agent": "curl/8.5.0"
+  },
+  "json": null,
+  "origin": "94.215.21.151",
+  "url": "http://httpbin.org/delete"
+}
+```
+
+---
+
+## 13. Sending JSON Data
+**Description**: Sends a POST request with a JSON payload, specifying the `Content-Type: application/json` header.
+**Input**:
+```bash
+curl -s -H "Content-Type: application/json" -d '{"key": "value"}' httpbin.org/post
+```
+**Output**:
+```json
+{
+  "args": {},
+  "data": "{\"key\": \"value\"}",
+  "files": {},
+  "form": {},
+  "headers": {
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Host": "httpbin.org",
+    "User-Agent": "curl/8.5.0"
+  },
+  "json": {
+    "key": "value"
+  },
+  "origin": "94.215.21.151",
+  "url": "http://httpbin.org/post"
+}
+```
+
+---
+
+## 14. Query Parameters with URL Encoding
+**Description**: Sends a GET request with multiple query parameters that are automatically URL-encoded using the `--data-urlencode` flag combined with `-G`.
+**Input**:
+```bash
+curl -s --data-urlencode "name=John Doe" --data-urlencode "city=New York" -G httpbin.org/get
+```
+**Output**:
+```json
+{
+  "args": {
+    "city": "New York",
+    "name": "John Doe"
+  },
+  "headers": {
+    "Accept": "*/*",
+    "Host": "httpbin.org",
+    "User-Agent": "curl/8.5.0"
+  },
+  "origin": "94.215.21.151",
+  "url": "http://httpbin.org/get?name=John+Doe&city=New+York"
+}
+```
+
+---
+
+## 15. Write-out Format (HTTP Status Code)
+**Description**: Extracts specific information from the request/response lifecycle (like the HTTP status code) using the `-w` flag.
+**Input**:
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" httpbin.org/get
+```
+**Output**:
+```text
+200
+```
+
+---
+
+## 16. Silent Mode with Errors
+**Description**: Suppresses the progress meter but still shows error messages if the request fails, using the `-s` and `-S` flags together.
+**Input**:
+```bash
+curl -sS http://non-existent-domain.com
+```
+**Output**:
+```text
+curl: (6) Could not resolve host: non-existent-domain.com
+```
+
+---
+
+## 17. Insecure SSL (Ignore Certificate Errors)
+**Description**: Allows `curl` to connect to a server with an invalid or self-signed SSL certificate using the `-k` (or `--insecure`) flag.
+**Input**:
+```bash
+curl -s -k https://self-signed.badssl.com/
+```
+**Output**:
+(Standard HTML response body from the server, which would have failed without `-k`.)
+
+---
+
+## 18. Connect Timeout
+**Description**: Limits the maximum time in seconds allowed for the initial connection to the server using the `--connect-timeout` flag.
+**Input**:
+```bash
+curl -s --connect-timeout 2 httpbin.org/delay/5
+```
+**Output**:
+(If the connection takes more than 2 seconds, curl will exit with an error.)
+
+---
+
+## 19. Using a Proxy
+**Description**: Routes the request through a specified proxy server using the `-x` flag.
+**Input**:
+```bash
+curl -s -x http://proxy.example.com:8080 httpbin.org/get
+```
+**Output**:
+(The response from httpbin.org, delivered via the proxy server.)
+
+---
+
+## 20. Include Headers in Output
+**Description**: Includes the HTTP response headers in the output before the body using the `-i` flag.
+**Input**:
+```bash
+curl -s -i httpbin.org/get
+```
+**Output**:
+```text
+HTTP/1.1 200 OK
+Date: Fri, 13 Mar 2026 12:15:25 GMT
+Content-Type: application/json
+Content-Length: 253
+Connection: keep-alive
+Server: gunicorn/19.9.0
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Credentials: true
+
+{
+  "args": {},
+  "headers": {
+    "Accept": "*/*",
+    "Host": "httpbin.org",
+    "User-Agent": "curl/8.5.0"
+  },
+  "origin": "94.215.21.151",
+  "url": "http://httpbin.org/get"
+}
+```
+
+---
+
+## 21. Simple HEAD Request
+**Description**: Performs a basic HTTP HEAD request using only the `-I` flag. This is the simplest and most common way to retrieve headers only.
+**Input**:
+```bash
+curl -I httpbin.org/get
+```
+**Output**:
+```text
+HTTP/1.1 200 OK
+Date: Fri, 13 Mar 2026 12:20:22 GMT
+Content-Type: application/json
+Content-Length: 253
+Connection: keep-alive
+Server: gunicorn/19.9.0
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Credentials: true
+```
+
+---
+
+## 22. Compressed Response
+**Description**: Requests the server to send the response in a compressed format (e.g., gzip, deflate) using the `--compressed` flag. Curl will automatically decompress the response for you.
+**Input**:
+```bash
+curl -s -I --compressed httpbin.org/get
+```
+**Output**:
+```text
+HTTP/1.1 200 OK
+Date: Fri, 13 Mar 2026 12:20:42 GMT
+Content-Type: application/json
+Content-Length: 304
+Connection: keep-alive
+Server: gunicorn/19.9.0
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Credentials: true
+```
+(Note: The `Content-Length` might differ from non-compressed requests depending on server implementation.)
+
+---
+
+## 23. Range Request (Partial Content)
+**Description**: Requests a specific byte range of a resource using the `-r` (or `--range`) flag. The server should respond with `206 Partial Content`.
+**Input**:
+```bash
+curl -s -r 0-50 httpbin.org/range/1024
+```
+**Output**:
+```text
+abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwx
+```
+(Output shows the first 51 bytes of the generated random data from httpbin.org.)
+
+---
+
+## 24. Saving with Remote Filename
+**Description**: Saves the response to a local file using the same name as the remote resource using the `-O` (uppercase O) flag.
+**Input**:
+```bash
+# This will save the content to a file named 'get'
+curl -s -O httpbin.org/get
+```
+**Output**:
+(No terminal output. A file named `get` is created with the response content.)
+
+---
+
+## 25. Maximum Time for Request
+**Description**: Limits the total time in seconds that the entire operation is allowed to take using the `--max-time` (or `-m`) flag.
+**Input**:
+```bash
+# This will time out since the server is instructed to delay for 5 seconds
+curl -s --max-time 2 httpbin.org/delay/5
+```
+**Output**:
+(No output or error message depending on flags, but curl will exit with code 28 after 2 seconds.)
