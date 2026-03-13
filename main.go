@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"os"
@@ -17,19 +18,61 @@ func main() {
 	}
 
 	opts := ParseArgs(args)
+
+	if opts.ShowHelp {
+		fmt.Println("Usage: kemforge [options] <url>")
+		fmt.Println("Options:")
+		fmt.Println("  -o <file>          Write output to <file>")
+		fmt.Println("  -H <header>        Pass custom header(s) to server")
+		fmt.Println("  -d <data>          HTTP POST data")
+		fmt.Println("  --data-raw <data>  HTTP POST data (no @ support)")
+		fmt.Println("  -v                 Make the operation more talkative")
+		fmt.Println("  -i                 Include protocol response headers in the output")
+		fmt.Println("  -L                 Follow redirects")
+		fmt.Println("  -k                 Allow insecure server connections when using SSL")
+		fmt.Println("  -s                 Silent mode")
+		fmt.Println("  --help             This help text")
+		fmt.Println("  --version          Show version number and exit")
+		os.Exit(0)
+	}
+
+	if opts.ShowVersion {
+		fmt.Println("kemforge (curl-compatible) version 1.0.0")
+		os.Exit(0)
+	}
+
 	client, jar := BuildClient(opts)
 
 	if opts.Parallel {
 		var wg sync.WaitGroup
-		for _, targetURL := range opts.TargetURLs {
+		for i, targetURL := range opts.TargetURLs {
+			i, targetURL := i, targetURL
 			wg.Go(func() {
-				executeRequest(opts, client, jar, targetURL)
+				// Each request might have its own output file if multiple -o were specified
+				currentOpts := opts
+				if i < len(opts.OutputFiles) {
+					currentOpts.OutputFile = opts.OutputFiles[i]
+				} else if len(opts.OutputFiles) > 0 {
+					// If multiple -o were provided but not enough for all URLs,
+					// curl behavior varies, but we'll use the last one or stdout?
+					// Actually curl -o f1 -o f2 url1 url2 url3 -> url1 to f1, url2 to f2, url3 to stdout.
+					if i >= len(opts.OutputFiles) {
+						currentOpts.OutputFile = ""
+					}
+				}
+				executeRequest(currentOpts, client, jar, targetURL)
 			})
 		}
 		wg.Wait()
 	} else {
-		for _, targetURL := range opts.TargetURLs {
-			executeRequest(opts, client, jar, targetURL)
+		for i, targetURL := range opts.TargetURLs {
+			currentOpts := opts
+			if i < len(opts.OutputFiles) {
+				currentOpts.OutputFile = opts.OutputFiles[i]
+			} else if len(opts.OutputFiles) > 0 {
+				currentOpts.OutputFile = ""
+			}
+			executeRequest(currentOpts, client, jar, targetURL)
 		}
 	}
 }
@@ -95,9 +138,28 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 		os.Exit(22)
 	}
 
-	// Verbose: print response headers
+	// Verbose: print response headers and TLS info
 	if opts.Verbose {
 		LogVerboseResponse(resp)
+		// Print TLS information if available
+		if resp.TLS != nil {
+			tlsVersion := "unknown"
+			switch resp.TLS.Version {
+			case tls.VersionTLS10:
+				tlsVersion = "1.0"
+			case tls.VersionTLS11:
+				tlsVersion = "1.1"
+			case tls.VersionTLS12:
+				tlsVersion = "1.2"
+			case tls.VersionTLS13:
+				tlsVersion = "1.3"
+			}
+			_, _ = fmt.Fprintf(os.Stderr, "* TLS DATA:\n")
+			_, _ = fmt.Fprintf(os.Stderr, "* TlsVersion: %s\n", tlsVersion)
+			_, _ = fmt.Fprintf(os.Stderr, "* Cipher:\t%s\n", tls.CipherSuiteName(resp.TLS.CipherSuite))
+			_, _ = fmt.Fprintf(os.Stderr, "* KeyExchangeGroup: %s\n", resp.TLS.CurveID.String())
+			_, _ = fmt.Fprintf(os.Stderr, "* \n")
+		}
 	}
 
 	// Save cookies if -c specified

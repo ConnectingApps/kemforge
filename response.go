@@ -3,7 +3,6 @@ package main
 import (
 	"compress/gzip"
 	"compress/zlib"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -142,26 +141,6 @@ func WriteResponse(resp *http.Response, req *http.Request, opts Options, startTi
 
 		n, _ := io.Copy(output, bodyReader)
 		sizeDownload = n
-	}
-
-	// Print TLS information if available
-	if resp.TLS != nil {
-		tlsVersion := "unknown"
-		switch resp.TLS.Version {
-		case tls.VersionTLS10:
-			tlsVersion = "1.0"
-		case tls.VersionTLS11:
-			tlsVersion = "1.1"
-		case tls.VersionTLS12:
-			tlsVersion = "1.2"
-		case tls.VersionTLS13:
-			tlsVersion = "1.3"
-		}
-		_, _ = fmt.Fprintf(output, "TLS DATA:\n")
-		_, _ = fmt.Fprintf(output, "TlsVersion: %s\n", tlsVersion)
-		_, _ = fmt.Fprintf(output, "Cipher:\t%s\n", tls.CipherSuiteName(resp.TLS.CipherSuite))
-		_, _ = fmt.Fprintf(output, "KeyExchangeGroup: %s\n", resp.TLS.CurveID.String())
-		_, _ = fmt.Fprintf(output, "\n")
 	}
 
 	// Write-out format

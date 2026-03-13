@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // simpleCookieJar implements http.CookieJar to track cookies across redirects.
@@ -32,7 +34,11 @@ func (j *simpleCookieJar) Cookies(u *url.URL) []*http.Cookie {
 	defer j.mu.Unlock()
 	host := u.Hostname()
 	var result []*http.Cookie
+	now := time.Now()
 	for _, c := range j.entries[host] {
+		if !c.Expires.IsZero() && c.Expires.Before(now) {
+			continue
+		}
 		result = append(result, c)
 	}
 	return result
@@ -66,6 +72,11 @@ func loadCookiesIntoJar(jar *simpleCookieJar, filename string, reqURL *url.URL) 
 			c := &http.Cookie{
 				Name:  fields[5],
 				Value: fields[6],
+				Path:  fields[1],
+			}
+			expires, _ := strconv.ParseInt(fields[4], 10, 64)
+			if expires > 0 {
+				c.Expires = time.Unix(expires, 0)
 			}
 			host := fields[0]
 			u := &url.URL{Scheme: reqURL.Scheme, Host: host}

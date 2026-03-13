@@ -44,7 +44,7 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	if method == "" {
 		if opts.HeadReq {
 			method = "HEAD"
-		} else if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.FormArgs) > 0 || opts.JSONData != "" {
+		} else if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.DataRaw) > 0 || len(opts.FormArgs) > 0 || opts.JSONData != "" {
 			method = "POST"
 		} else if opts.UploadFile != "" {
 			method = "PUT"
@@ -103,7 +103,7 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 				if strings.EqualFold(key, "Host") {
 					req.Host = val
 				}
-				req.Header.Set(key, val)
+				req.Header.Add(key, val)
 			}
 		}
 	}
@@ -163,10 +163,16 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 // buildRequestBody creates the request body and content type from the options.
 func buildRequestBody(opts Options) (io.Reader, string) {
 	if opts.UploadFile != "" {
-		f, err := os.Open(opts.UploadFile)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't read file '%s': %v\n", opts.UploadFile, err)
-			os.Exit(1)
+		var f io.ReadCloser
+		var err error
+		if opts.UploadFile == "-" {
+			f = os.Stdin
+		} else {
+			f, err = os.Open(opts.UploadFile)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't read file '%s': %v\n", opts.UploadFile, err)
+				os.Exit(1)
+			}
 		}
 		return f, ""
 	}
@@ -247,7 +253,7 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 		return strings.NewReader(buf.String()), w.FormDataContentType()
 	}
 
-	if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 {
+	if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.DataRaw) > 0 {
 		var allData [][]byte
 		combinedArgs := append([]string{}, opts.DataArgs...)
 		combinedArgs = append(combinedArgs, opts.DataBinary...)
@@ -271,6 +277,11 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 				allData = append(allData, []byte(d))
 			}
 		}
+
+		for _, d := range opts.DataRaw {
+			allData = append(allData, []byte(d))
+		}
+
 		var finalBody []byte
 		for i, d := range allData {
 			if i > 0 {

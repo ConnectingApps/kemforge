@@ -20,7 +20,8 @@ type Options struct {
 	RemoteOut     bool // -O
 	Method        string
 	UserAgent     string
-	OutputFile    string
+	OutputFile    string   // single -o
+	OutputFiles   []string // multiple -o
 	WriteOut      string
 	CookieJar     string // -c
 	CookieFile    string // -b
@@ -35,6 +36,7 @@ type Options struct {
 	JSONData      string   // --json
 	DataBinary    []string // --data-binary
 	ConfigPath    string   // -K
+	NoProxy       string   // --noproxy
 	LimitRate     int64    // --limit-rate (bytes per second)
 	Parallel      bool     // -Z
 	RangeHeader   string   // -r
@@ -43,6 +45,7 @@ type Options struct {
 	FormArgs      []string // -F
 	URLEncodeArgs []string // --data-urlencode
 	ResolveArgs   []string // --resolve
+	DataRaw       []string // --data-raw
 	DumpHeader    string   // --dump-header
 	UploadFile    string   // -T
 	ResumeOffset  int64    // -C
@@ -62,6 +65,8 @@ type Options struct {
 	Netrc         bool   // -n
 	CookieEnable  bool   // true if -b was specified
 	ProxyUser     string // --proxy-user user:pass
+	ShowHelp      bool   // --help
+	ShowVersion   bool   // --version
 }
 
 // ParseArgs parses command-line arguments into an Options struct.
@@ -143,6 +148,7 @@ func ParseArgs(args []string) Options {
 			i++
 			if i < len(args) {
 				opts.OutputFile = args[i]
+				opts.OutputFiles = append(opts.OutputFiles, args[i])
 			}
 		case a == "-w":
 			i++
@@ -171,6 +177,16 @@ func ParseArgs(args []string) Options {
 			i++
 			if i < len(args) {
 				opts.DataBinary = append(opts.DataBinary, args[i])
+			}
+		case a == "--data-raw":
+			i++
+			if i < len(args) {
+				opts.DataRaw = append(opts.DataRaw, args[i])
+			}
+		case a == "--noproxy":
+			i++
+			if i < len(args) {
+				opts.NoProxy = args[i]
 			}
 		case a == "--cert":
 			i++
@@ -285,6 +301,10 @@ func ParseArgs(args []string) Options {
 			if i < len(args) {
 				opts.RangeHeader = args[i]
 			}
+		case a == "--help":
+			opts.ShowHelp = true
+		case a == "--version":
+			opts.ShowVersion = true
 		case strings.HasPrefix(a, "-"):
 			// Unknown flag, ignore
 		default:
@@ -296,7 +316,7 @@ func ParseArgs(args []string) Options {
 		parseConfigFile(&opts)
 	}
 
-	if len(opts.TargetURLs) == 0 {
+	if len(opts.TargetURLs) == 0 && !opts.ShowHelp && !opts.ShowVersion {
 		_, _ = fmt.Fprintf(os.Stderr, "kemforge: no URL specified\n")
 		os.Exit(1)
 	}

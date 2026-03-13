@@ -34,22 +34,61 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 
 	// Set proxy
-	transport.Proxy = http.ProxyFromEnvironment
+	var proxyURL *url.URL
 	if opts.ProxyURL != "" {
-		proxyU, err := url.Parse(opts.ProxyURL)
+		pU, err := url.Parse(opts.ProxyURL)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: invalid proxy URL: %v\n", err)
 			os.Exit(1)
 		}
+		proxyURL = pU
 		if opts.ProxyUser != "" {
 			parts := strings.SplitN(opts.ProxyUser, ":", 2)
 			if len(parts) == 2 {
-				proxyU.User = url.UserPassword(parts[0], parts[1])
+				proxyURL.User = url.UserPassword(parts[0], parts[1])
 			} else {
-				proxyU.User = url.User(opts.ProxyUser)
+				proxyURL.User = url.User(opts.ProxyUser)
 			}
 		}
-		transport.Proxy = http.ProxyURL(proxyU)
+	} else if allProxy := os.Getenv("ALL_PROXY"); allProxy != "" {
+		if pU, err := url.Parse(allProxy); err == nil {
+			proxyURL = pU
+		}
+	}
+
+	if proxyURL != nil || opts.NoProxy != "" {
+		transport.Proxy = func(req *http.Request) (*url.URL, error) {
+			// Get noProxy list
+			noProxy := opts.NoProxy
+			if noProxy == "" {
+				noProxy = os.Getenv("NO_PROXY")
+				if noProxy == "" {
+					noProxy = os.Getenv("no_proxy")
+				}
+			}
+
+			// Check if host is in noProxy
+			host := req.URL.Hostname()
+			for _, p := range strings.Split(noProxy, ",") {
+				p = strings.TrimSpace(p)
+				if p == "" {
+					continue
+				}
+				if p == "*" || host == p || strings.HasSuffix(host, "."+p) {
+					return nil, nil
+				}
+			}
+
+			// If we have a specific proxy, return it
+			if proxyURL != nil {
+				return proxyURL, nil
+			}
+
+			// Otherwise fall back to environment (but we already checked NO_PROXY)
+			return http.ProxyFromEnvironment(req)
+		}
+	} else {
+		transport.Proxy = http.ProxyFromEnvironment
 	}
 
 	// Set connect timeout via custom dialer
