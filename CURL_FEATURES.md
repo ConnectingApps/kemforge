@@ -1233,11 +1233,11 @@ curl -s --noproxy 127.0.0.1 http://127.0.0.1:8080/get
 ---
 
 ### 82. Case-Insensitivity of Proxy Environment Variables
-**Description**: Verifies that both `http_proxy` and `HTTP_PROXY` are respected.
+**Description**: Verifies that the tool respects proxy environment variables regardless of case (e.g., `all_proxy` vs `ALL_PROXY`). Note: On Linux, `HTTP_PROXY` may be ignored for security reasons, so `ALL_PROXY` is used for testing.
 **Input**:
 ```bash
-export HTTP_PROXY=http://127.0.0.1:8080/proxy
-curl -s http://google.com/get
+export ALL_PROXY=http://127.0.0.1:8080/proxy
+curl -s http://example.com/get
 ```
 **Output**:
 (The request is routed through the proxy.)
@@ -1248,7 +1248,7 @@ curl -s http://google.com/get
 **Description**: Tests `CONNECT` requests through a proxy to reach an HTTPS destination.
 **Input**:
 ```bash
-curl -s -x http://127.0.0.1:8080/proxy -p https://127.0.0.1:8443/get
+curl -s -k -x http://127.0.0.1:8081 https://127.0.0.1:8443/get
 ```
 **Output**:
 (Response from the HTTPS server delivered via the proxy tunnel.)

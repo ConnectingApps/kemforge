@@ -18,6 +18,7 @@ import string
 import ssl
 import threading
 import time
+import socket
 from flask import Flask, request, jsonify, redirect, make_response, Response
 
 app = Flask(__name__)
@@ -341,6 +342,48 @@ def proxy_handler():
 
 
 # ---------------------------------------------------------------------------
+# Simple TCP CONNECT proxy (Test 83)
+# ---------------------------------------------------------------------------
+
+def run_connect_proxy(port):
+    """A minimal TCP-level CONNECT proxy for tunneling."""
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        server.bind(("127.0.0.1", port))
+    except Exception as e:
+        print(f"CONNECT proxy bind failed: {e}")
+        return
+    server.listen(5)
+    while True:
+        client, _ = server.accept()
+        def tunnel(c):
+            try:
+                data = c.recv(4096)
+                if data.startswith(b"CONNECT"):
+                    # Format: CONNECT target:port HTTP/1.1
+                    parts = data.split(b" ")
+                    if len(parts) > 1:
+                        target = parts[1].decode().split(":")
+                        host = target[0]
+                        port_num = int(target[1])
+                        with socket.create_connection((host, port_num)) as remote:
+                            c.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                            def forward(src, dst):
+                                try:
+                                    while True:
+                                        d = src.recv(4096)
+                                        if not d: break
+                                        dst.sendall(d)
+                                except: pass
+                            threading.Thread(target=forward, args=(c, remote), daemon=True).start()
+                            forward(remote, c)
+                c.close()
+            except: pass
+        threading.Thread(target=tunnel, args=(client,), daemon=True).start()
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -354,11 +397,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Local httpbin-like test server")
     parser.add_argument("--port", type=int, default=8080, help="HTTP port (default 8080)")
     parser.add_argument("--https-port", type=int, default=8443, help="HTTPS port (default 8443)")
+    parser.add_argument("--proxy-port", type=int, default=8081, help="CONNECT proxy port (default 8081)")
     args = parser.parse_args()
 
     # Start HTTPS server in a background thread
     https_thread = threading.Thread(target=run_https, args=(args.https_port,), daemon=True)
     https_thread.start()
+
+    # Start CONNECT proxy in a background thread
+    proxy_thread = threading.Thread(target=run_connect_proxy, args=(args.proxy_port,), daemon=True)
+    proxy_thread.start()
 
     # Start HTTP server (foreground)
     app.run(host="127.0.0.1", port=args.port, use_reloader=False)

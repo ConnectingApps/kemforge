@@ -26,6 +26,7 @@ $venvPython = Join-Path $scriptDir ".venv/bin/python"
 $testServer = Join-Path $scriptDir "test_server.py"
 $httpPort = 8080
 $httpsPort = 8443
+$proxyPort = 8081
 $baseUrl = "http://127.0.0.1:$httpPort"
 $httpsBaseUrl = "https://127.0.0.1:$httpsPort"
 
@@ -107,7 +108,7 @@ if (-not (Test-Path $testServer)) {
     exit 1
 }
 
-Write-Host "Starting local test server on ports $httpPort (HTTP) and $httpsPort (HTTPS)..." -ForegroundColor Magenta
+Write-Host "Starting local test server on ports $httpPort (HTTP), $httpsPort (HTTPS) and $proxyPort (CONNECT)..." -ForegroundColor Magenta
 
 # Stop any existing server process on these ports (cleanup from previous runs)
 try {
@@ -118,7 +119,7 @@ try {
 
 $serverPsi = New-Object System.Diagnostics.ProcessStartInfo
 $serverPsi.FileName = $venvPython
-$serverPsi.Arguments = "$testServer --port $httpPort --https-port $httpsPort"
+$serverPsi.Arguments = "$testServer --port $httpPort --https-port $httpsPort --proxy-port $proxyPort"
 $serverPsi.RedirectStandardOutput = $true
 $serverPsi.RedirectStandardError = $true
 $serverPsi.UseShellExecute = $false
@@ -1465,7 +1466,17 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "83. HTTPS over HTTP Proxy (Tunneling)"
-Write-Skip "HTTPS over HTTP Proxy (Tunneling) requires CONNECT support in mock server."
+$result = Invoke-CurlTest "-s -k -x http://127.0.0.1:$proxyPort $httpsBaseUrl/get"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    if ($json.url -match "https://") {
+        Write-Pass "HTTPS over HTTP Proxy (Tunneling) succeeded."
+    } else {
+        Write-Fail "HTTPS over HTTP Proxy (Tunneling) failed: $($result.Stdout)"
+    }
+} catch {
+    Write-Fail "Failed to parse JSON response: $($result.Stdout)"
+}
 
 # ----------------------------------------------------------------
 # Test 84: Exit Code Specificity
