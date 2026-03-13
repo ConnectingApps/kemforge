@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 )
 
 // LogVerboseRequest prints request details to stderr when -v is set.
@@ -109,6 +110,10 @@ func WriteResponse(resp *http.Response, req *http.Request, opts Options) {
 			}
 		}
 
+		if opts.LimitRate > 0 {
+			bodyReader = &rateLimitedReader{r: bodyReader, bytesPerSec: opts.LimitRate}
+		}
+
 		_, _ = io.Copy(output, bodyReader)
 	}
 
@@ -139,4 +144,27 @@ func WriteResponse(resp *http.Response, req *http.Request, opts Options) {
 		wout = strings.ReplaceAll(wout, "\\n", "\n")
 		_, _ = fmt.Fprint(os.Stdout, wout)
 	}
+}
+
+type rateLimitedReader struct {
+	r           io.Reader
+	bytesPerSec int64
+}
+
+func (l *rateLimitedReader) Read(p []byte) (int, error) {
+	// Small buffer for better precision
+	chunkSize := len(p)
+	if int64(chunkSize) > l.bytesPerSec/10 {
+		chunkSize = int(l.bytesPerSec / 10)
+		if chunkSize < 1 {
+			chunkSize = 1
+		}
+	}
+
+	n, err := l.r.Read(p[:chunkSize])
+	if n > 0 {
+		sleepDuration := time.Duration(n) * time.Second / time.Duration(l.bytesPerSec)
+		time.Sleep(sleepDuration)
+	}
+	return n, err
 }

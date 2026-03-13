@@ -12,9 +12,8 @@ import (
 	"strings"
 )
 
-// NewHTTPRequest builds a fully configured *http.Request from the parsed options.
-func NewHTTPRequest(opts Options) *http.Request {
-	targetURL := opts.TargetURL
+// NewHTTPRequest builds a fully configured *http.Request from the parsed options for a specific URL.
+func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 
 	// Ensure URL has scheme
 	if !strings.Contains(targetURL, "://") {
@@ -46,7 +45,7 @@ func NewHTTPRequest(opts Options) *http.Request {
 	if method == "" {
 		if opts.HeadReq {
 			method = "HEAD"
-		} else if len(opts.DataArgs) > 0 || len(opts.FormArgs) > 0 {
+		} else if len(opts.DataArgs) > 0 || len(opts.FormArgs) > 0 || opts.JSONData != "" {
 			method = "POST"
 		} else {
 			method = "GET"
@@ -74,8 +73,17 @@ func NewHTTPRequest(opts Options) *http.Request {
 	// Set user agent
 	req.Header.Set("User-Agent", opts.UserAgent)
 
+	// Set referer
+	if opts.Referer != "" {
+		req.Header.Set("Referer", opts.Referer)
+	}
+
 	// Set Accept
-	req.Header.Set("Accept", "*/*")
+	if opts.JSONData != "" {
+		req.Header.Set("Accept", "application/json")
+	} else {
+		req.Header.Set("Accept", "*/*")
+	}
 
 	// Set content type
 	if contentType != "" {
@@ -113,6 +121,20 @@ func NewHTTPRequest(opts Options) *http.Request {
 
 // buildRequestBody creates the request body and content type from the options.
 func buildRequestBody(opts Options) (io.Reader, string) {
+	if opts.JSONData != "" {
+		data := opts.JSONData
+		if strings.HasPrefix(data, "@") {
+			filePath := data[1:]
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't read file '%s': %v\n", filePath, err)
+				os.Exit(1)
+			}
+			data = string(content)
+		}
+		return strings.NewReader(data), "application/json"
+	}
+
 	if len(opts.FormArgs) > 0 {
 		// Multipart form
 		var buf strings.Builder

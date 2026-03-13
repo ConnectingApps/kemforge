@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 )
 
 // HandleRequestError inspects the error from client.Do() and exits
@@ -54,6 +55,9 @@ func HandleRequestError(err error, req *http.Request, ctx context.Context, opts 
 	}
 	if !opts.Silent || opts.ShowErrors {
 		_, _ = fmt.Fprintf(os.Stderr, "kemforge: %v\n", err)
+	}
+	if strings.Contains(err.Error(), "redirects followed") {
+		os.Exit(47)
 	}
 	os.Exit(1)
 }

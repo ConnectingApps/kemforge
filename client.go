@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/net/http2"
@@ -38,11 +39,25 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 
 	// Set connect timeout via custom dialer
-	if opts.ConnectTmout > 0 {
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			d := net.Dialer{Timeout: time.Duration(opts.ConnectTmout * float64(time.Second))}
-			return d.DialContext(ctx, network, addr)
+	dialer := &net.Dialer{
+		Timeout: time.Duration(opts.ConnectTmout * float64(time.Second)),
+	}
+
+	// Set resolve overrides
+	resolveMap := make(map[string]string)
+	for _, r := range opts.ResolveArgs {
+		parts := strings.SplitN(r, ":", 3)
+		if len(parts) == 3 {
+			hostPort := fmt.Sprintf("%s:%s", parts[0], parts[1])
+			resolveMap[hostPort] = fmt.Sprintf("%s:%s", parts[2], parts[1])
 		}
+	}
+
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if target, ok := resolveMap[addr]; ok {
+			addr = target
+		}
+		return dialer.DialContext(ctx, network, addr)
 	}
 
 	// Build client
@@ -54,6 +69,13 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	if !opts.FollowRedirs {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
+		}
+	} else if opts.MaxRedirs > 0 {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if len(via) >= opts.MaxRedirs {
+				return fmt.Errorf("maximum (%d) redirects followed", opts.MaxRedirs)
+			}
+			return nil
 		}
 	}
 
