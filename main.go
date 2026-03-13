@@ -147,12 +147,12 @@ func main() {
 		case a == "--connect-timeout":
 			i++
 			if i < len(args) {
-				fmt.Sscanf(args[i], "%f", &connectTmout)
+				_, _ = fmt.Sscanf(args[i], "%f", &connectTmout)
 			}
 		case a == "--max-time" || a == "-m":
 			i++
 			if i < len(args) {
-				fmt.Sscanf(args[i], "%f", &maxTime)
+				_, _ = fmt.Sscanf(args[i], "%f", &maxTime)
 			}
 		case a == "-r" || a == "--range":
 			i++
@@ -231,13 +231,13 @@ func main() {
 					os.Exit(1)
 				}
 				pw, _ := w.CreateFormFile(name, path.Base(filePath))
-				pw.Write(data)
+				_, _ = pw.Write(data)
 			} else {
 				pw, _ := w.CreateFormField(name)
-				pw.Write([]byte(val))
+				_, _ = pw.Write([]byte(val))
 			}
 		}
-		w.Close()
+		_ = w.Close()
 		contentType = w.FormDataContentType()
 		body = strings.NewReader(buf.String())
 	} else if len(dataArgs) > 0 {
@@ -432,7 +432,7 @@ func main() {
 		}
 		os.Exit(1)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Verbose: print response headers
 	if verbose {
@@ -461,7 +461,7 @@ func main() {
 				fmt.Fprintf(os.Stderr, "kemforge: can't open '%s': %v\n", outputFile, err)
 				os.Exit(1)
 			}
-			defer f.Close()
+			defer func() { _ = f.Close() }()
 			output = f
 		}
 	}
@@ -477,29 +477,29 @@ func main() {
 			fmt.Fprintf(os.Stderr, "kemforge: can't create '%s': %v\n", remoteName, err)
 			os.Exit(1)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		output = f
 	}
 
 	// Head request or -I: print headers
 	if headReq || (method == "HEAD") {
-		fmt.Fprintf(output, "HTTP/%d.%d %s\r\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
+		_, _ = fmt.Fprintf(output, "HTTP/%d.%d %s\r\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
 		for k, vals := range resp.Header {
 			for _, v := range vals {
-				fmt.Fprintf(output, "%s: %s\r\n", k, v)
+				_, _ = fmt.Fprintf(output, "%s: %s\r\n", k, v)
 			}
 		}
-		fmt.Fprintf(output, "\r\n")
+		_, _ = fmt.Fprintf(output, "\r\n")
 	} else {
 		// Include headers if -i
 		if includeHdr {
-			fmt.Fprintf(output, "HTTP/%d.%d %s\r\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
+			_, _ = fmt.Fprintf(output, "HTTP/%d.%d %s\r\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
 			for k, vals := range resp.Header {
 				for _, v := range vals {
-					fmt.Fprintf(output, "%s: %s\r\n", k, v)
+					_, _ = fmt.Fprintf(output, "%s: %s\r\n", k, v)
 				}
 			}
-			fmt.Fprintf(output, "\r\n")
+			_, _ = fmt.Fprintf(output, "\r\n")
 		}
 
 		// Read body, handle decompression if --compressed
@@ -509,19 +509,19 @@ func main() {
 			case "gzip":
 				gr, err := gzip.NewReader(resp.Body)
 				if err == nil {
-					defer gr.Close()
+					defer func() { _ = gr.Close() }()
 					bodyReader = gr
 				}
 			case "deflate":
 				zr, err := zlib.NewReader(resp.Body)
 				if err == nil {
-					defer zr.Close()
+					defer func() { _ = zr.Close() }()
 					bodyReader = zr
 				}
 			}
 		}
 
-		io.Copy(output, bodyReader)
+		_, _ = io.Copy(output, bodyReader)
 	}
 
 	// Write-out format
@@ -529,7 +529,7 @@ func main() {
 		wout := writeOut
 		wout = strings.ReplaceAll(wout, "%{http_code}", fmt.Sprintf("%d", resp.StatusCode))
 		wout = strings.ReplaceAll(wout, "\\n", "\n")
-		fmt.Fprint(os.Stdout, wout)
+		_, _ = fmt.Fprint(os.Stdout, wout)
 	}
 }
 
@@ -604,9 +604,9 @@ func saveCookiesFromJar(jar *simpleCookieJar, filename string) {
 	if err != nil {
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
-	fmt.Fprintln(f, "# Netscape HTTP Cookie File")
+	_, _ = fmt.Fprintln(f, "# Netscape HTTP Cookie File")
 	jar.mu.Lock()
 	defer jar.mu.Unlock()
 	for host, cookies := range jar.entries {
@@ -623,7 +623,7 @@ func saveCookiesFromJar(jar *simpleCookieJar, filename string) {
 			if c.Path != "" {
 				cpath = c.Path
 			}
-			fmt.Fprintf(f, "%s\tTRUE\t%s\t%s\t%s\t%s\t%s\n", host, cpath, secure, expires, c.Name, c.Value)
+			_, _ = fmt.Fprintf(f, "%s\tTRUE\t%s\t%s\t%s\t%s\t%s\n", host, cpath, secure, expires, c.Name, c.Value)
 		}
 	}
 }
