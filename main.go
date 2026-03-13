@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -32,6 +33,9 @@ func main() {
 			fmt.Println("  -L                 Follow redirects")
 			fmt.Println("  -k                 Allow insecure server connections when using SSL")
 			fmt.Println("  -s                 Silent mode")
+			fmt.Println("  --retry <num>      Retry request on transient errors")
+			fmt.Println("  --retry-delay <s>  Wait <seconds> between retries")
+			fmt.Println("  --pqc              Enable Post-Quantum Cryptography (ML-KEM)")
 			fmt.Println("  --help             This help text")
 			fmt.Println("  --version          Show version number and exit")
 			continue
@@ -58,7 +62,10 @@ func main() {
 							currentOpts.OutputFile = ""
 						}
 					}
-					executeRequest(currentOpts, client, jar, targetURL)
+					success := executeRequest(currentOpts, client, jar, targetURL)
+					if !success && opts.FailEarly {
+						os.Exit(1)
+					}
 				})
 			}
 			wg.Wait()
@@ -70,13 +77,16 @@ func main() {
 				} else if len(opts.OutputFiles) > 0 {
 					currentOpts.OutputFile = ""
 				}
-				executeRequest(currentOpts, client, jar, targetURL)
+				success := executeRequest(currentOpts, client, jar, targetURL)
+				if !success && opts.FailEarly {
+					os.Exit(1)
+				}
 			}
 		}
 	}
 }
 
-func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, targetURL string) {
+func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, targetURL string) bool {
 	startTime := time.Now()
 	req := NewHTTPRequest(opts, targetURL)
 
@@ -107,21 +117,35 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 	for {
 		resp, err = client.Do(req)
 		if err == nil {
-			// Check for retry on 5xx
-			if opts.RetryCount > 0 && attempts < opts.RetryCount && resp.StatusCode >= 500 {
+			// Check for retry on 5xx or all errors if --retry-all-errors
+			shouldRetry := (resp.StatusCode >= 500) || opts.RetryAllErrors
+			if opts.RetryCount > 0 && attempts < opts.RetryCount && shouldRetry {
 				attempts++
-				_, _ = fmt.Fprintf(os.Stderr, "Retry attempt %d/%d - Failing with %d\n", attempts, opts.RetryCount, resp.StatusCode)
+				if !opts.Silent {
+					_, _ = fmt.Fprintf(os.Stderr, "Retry attempt %d/%d - Failing with %d\n", attempts, opts.RetryCount, resp.StatusCode)
+				}
 				_ = resp.Body.Close()
-				time.Sleep(1 * time.Second) // Simple backoff
+				delay := time.Duration(1 * time.Second)
+				if opts.RetryDelay > 0 {
+					delay = time.Duration(opts.RetryDelay * float64(time.Second))
+				}
+				time.Sleep(delay)
 				continue
 			}
 			break
 		}
 
-		// Check for retry on network errors if needed, but for now just 5xx as per test
-		if opts.RetryCount > 0 && attempts < opts.RetryCount {
+		// Check for retry on network errors
+		isConnRefused := strings.Contains(err.Error(), "connection refused")
+		shouldRetry := opts.RetryAllErrors || (isConnRefused && opts.RetryConnRefused) || (!isConnRefused && opts.RetryCount > 0)
+
+		if opts.RetryCount > 0 && attempts < opts.RetryCount && shouldRetry {
 			attempts++
-			time.Sleep(1 * time.Second)
+			delay := time.Duration(1 * time.Second)
+			if opts.RetryDelay > 0 {
+				delay = time.Duration(opts.RetryDelay * float64(time.Second))
+			}
+			time.Sleep(delay)
 			continue
 		}
 		break
@@ -129,6 +153,7 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 
 	if err != nil {
 		HandleRequestError(err, req, ctx, opts)
+		return false
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -167,4 +192,5 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 	}
 
 	WriteResponse(resp, req, opts, startTime)
+	return true
 }

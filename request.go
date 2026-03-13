@@ -24,8 +24,8 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	if opts.GetMode && len(opts.URLEncodeArgs) > 0 {
 		u, err := url.Parse(targetURL)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "kemforge: URL parse error: %v\n", err)
-			os.Exit(1)
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (3) URL parse error: %v\n", err)
+			os.Exit(3)
 		}
 		q := u.Query()
 		for _, arg := range opts.URLEncodeArgs {
@@ -68,8 +68,10 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	// Build HTTP request
 	req, err := http.NewRequest(method, targetURL, body)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "kemforge: %v\n", err)
-		os.Exit(1)
+		if !opts.Silent || opts.ShowErrors {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (3) URL parse error: %v\n", err)
+		}
+		os.Exit(3)
 	}
 
 	// Set user agent
@@ -286,10 +288,12 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 
 	if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.DataRaw) > 0 {
 		var allData [][]byte
-		combinedArgs := append([]string{}, opts.DataArgs...)
-		combinedArgs = append(combinedArgs, opts.DataBinary...)
 
-		for _, d := range combinedArgs {
+		// We need to preserve the order of data flags if possible, but the current
+		// options structure separates them. We'll handle DataArgs (stripping newlines)
+		// and then DataBinary (as-is) and then DataRaw (stripping newlines).
+
+		for _, d := range opts.DataArgs {
 			if strings.HasPrefix(d, "@") {
 				filePath := d[1:]
 				var data []byte
@@ -300,8 +304,34 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 					data, err = os.ReadFile(filePath)
 				}
 				if err != nil {
-					_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't read file '%s': %v\n", filePath, err)
-					os.Exit(1)
+					_, _ = fmt.Fprintf(os.Stderr, "kemforge: (26) can't read file '%s': %v\n", filePath, err)
+					os.Exit(26)
+				}
+				// curl strips newlines for --data / -d
+				stripped := strings.ReplaceAll(string(data), "\n", "")
+				stripped = strings.ReplaceAll(stripped, "\r", "")
+				allData = append(allData, []byte(stripped))
+			} else {
+				// Also strip newlines from direct data string for -d
+				stripped := strings.ReplaceAll(d, "\n", "")
+				stripped = strings.ReplaceAll(stripped, "\r", "")
+				allData = append(allData, []byte(stripped))
+			}
+		}
+
+		for _, d := range opts.DataBinary {
+			if strings.HasPrefix(d, "@") {
+				filePath := d[1:]
+				var data []byte
+				var err error
+				if filePath == "-" {
+					data, err = io.ReadAll(os.Stdin)
+				} else {
+					data, err = os.ReadFile(filePath)
+				}
+				if err != nil {
+					_, _ = fmt.Fprintf(os.Stderr, "kemforge: (26) can't read file '%s': %v\n", filePath, err)
+					os.Exit(26)
 				}
 				allData = append(allData, data)
 			} else {
@@ -310,7 +340,10 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 		}
 
 		for _, d := range opts.DataRaw {
-			allData = append(allData, []byte(d))
+			// --data-raw also strips newlines but doesn't interpret @
+			stripped := strings.ReplaceAll(d, "\n", "")
+			stripped = strings.ReplaceAll(stripped, "\r", "")
+			allData = append(allData, []byte(stripped))
 		}
 
 		var finalBody []byte

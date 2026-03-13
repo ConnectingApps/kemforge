@@ -85,6 +85,11 @@ type Options struct {
 	SpeedTime        float64
 	CACert           string
 	PinnedPubKey     string
+	RetryDelay       float64
+	RetryConnRefused bool
+	RetryAllErrors   bool
+	FailEarly        bool
+	PQC              bool // --pqc
 }
 
 // ParseArgs parses command-line arguments into an Options struct.
@@ -355,6 +360,19 @@ func ParseArgs(args []string) []Options {
 			if i < len(args) {
 				_, _ = fmt.Sscanf(args[i], "%d", &opts.RetryCount)
 			}
+		case a == "--retry-delay":
+			i++
+			if i < len(args) {
+				_, _ = fmt.Sscanf(args[i], "%f", &opts.RetryDelay)
+			}
+		case a == "--retry-connrefused":
+			opts.RetryConnRefused = true
+		case a == "--retry-all-errors":
+			opts.RetryAllErrors = true
+		case a == "--fail-early":
+			opts.FailEarly = true
+		case a == "--pqc":
+			opts.PQC = true
 		case a == "--resolve":
 			i++
 			if i < len(args) {

@@ -59,6 +59,12 @@ func HandleRequestError(err error, req *http.Request, ctx context.Context, opts 
 		}
 		os.Exit(47)
 	}
+	if strings.Contains(err.Error(), "connection refused") {
+		if !opts.Silent || opts.ShowErrors {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (7) Failed to connect to %s port %s: Connection refused\n", req.URL.Hostname(), req.URL.Port())
+		}
+		os.Exit(7)
+	}
 	if strings.Contains(strings.ToLower(err.Error()), "tls") || strings.Contains(strings.ToLower(err.Error()), "certificate") {
 		if !opts.Silent || opts.ShowErrors {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (60) SSL certificate problem: %v\n", err)
