@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"os"
 	"time"
+
+	"golang.org/x/net/http2"
 )
 
 // BuildClient creates an *http.Client with the appropriate transport,
@@ -18,6 +20,11 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: opts.Insecure,
 		},
+	}
+
+	// Enable HTTP/2 support on the custom transport
+	if err := http2.ConfigureTransport(transport); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "kemforge: failed to configure HTTP/2: %v\n", err)
 	}
 
 	// Set proxy
