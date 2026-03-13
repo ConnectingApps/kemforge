@@ -2,6 +2,9 @@
 # test_curl.ps1 - Test script for curl features based on CURL_FEATURES.md
 # Usage: ./test_curl.ps1 <curl-command>
 # Example: ./test_curl.ps1 curl
+#
+# The script starts a local Flask test server (test_server.py) automatically
+# so that no external services (httpbin.org, badssl.com) are required.
 
 param(
     [Parameter(Mandatory = $true, Position = 0)]
@@ -14,6 +17,21 @@ $passed = 0
 $failed = 0
 $skipped = 0
 $totalTests = 0
+
+# ---------------------------------------------------------------------------
+# Determine paths & ports
+# ---------------------------------------------------------------------------
+$scriptDir = $PSScriptRoot
+$venvPython = Join-Path $scriptDir ".venv/bin/python"
+$testServer = Join-Path $scriptDir "test_server.py"
+$httpPort = 8080
+$httpsPort = 8443
+$baseUrl = "http://127.0.0.1:$httpPort"
+$httpsBaseUrl = "https://127.0.0.1:$httpsPort"
+
+# ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
 
 function Write-TestHeader {
     param([string]$Name)
@@ -60,13 +78,6 @@ function Invoke-CurlTest {
     $stderr = $process.StandardError.ReadToEnd()
     $process.WaitForExit()
 
-    if ($ReturnStderr) {
-        return @{
-            Stdout   = $stdout
-            Stderr   = $stderr
-            ExitCode = $process.ExitCode
-        }
-    }
     return @{
         Stdout   = $stdout
         Stderr   = $stderr
@@ -74,24 +85,76 @@ function Invoke-CurlTest {
     }
 }
 
-# Verify the tool exists
+# ---------------------------------------------------------------------------
+# Start the local Flask test server
+# ---------------------------------------------------------------------------
+
+if (-not (Test-Path $venvPython)) {
+    Write-Host "ERROR: Virtual-environment Python not found at $venvPython" -ForegroundColor Red
+    Write-Host "Create it with:  python3 -m venv .venv && .venv/bin/pip install flask pyopenssl" -ForegroundColor Yellow
+    exit 1
+}
+if (-not (Test-Path $testServer)) {
+    Write-Host "ERROR: test_server.py not found at $testServer" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "Starting local test server on ports $httpPort (HTTP) and $httpsPort (HTTPS)..." -ForegroundColor Magenta
+
+$serverPsi = New-Object System.Diagnostics.ProcessStartInfo
+$serverPsi.FileName = $venvPython
+$serverPsi.Arguments = "$testServer --port $httpPort --https-port $httpsPort"
+$serverPsi.RedirectStandardOutput = $true
+$serverPsi.RedirectStandardError = $true
+$serverPsi.UseShellExecute = $false
+$serverPsi.CreateNoWindow = $true
+
+$serverProcess = New-Object System.Diagnostics.Process
+$serverProcess.StartInfo = $serverPsi
+$serverProcess.Start() | Out-Null
+
+# Wait for the HTTP server to be ready
+$ready = $false
+for ($i = 0; $i -lt 30; $i++) {
+    Start-Sleep -Milliseconds 500
+    try {
+        $probe = Invoke-CurlTest "-s -o /dev/null -w `"%{http_code}`" $baseUrl/get"
+        if ($probe.Stdout.Trim() -eq "200") { $ready = $true; break }
+    } catch { }
+}
+if (-not $ready) {
+    Write-Host "ERROR: Local test server did not start in time." -ForegroundColor Red
+    if (-not $serverProcess.HasExited) { $serverProcess.Kill() }
+    exit 1
+}
+Write-Host "Local test server is ready." -ForegroundColor Green
+
+# Ensure the server is stopped when the script exits
+trap {
+    if (-not $serverProcess.HasExited) { $serverProcess.Kill() }
+}
+
+# ---------------------------------------------------------------------------
+# Verify the curl tool exists
+# ---------------------------------------------------------------------------
 $toolCheck = Get-Command $CurlCmd -ErrorAction SilentlyContinue
 if (-not $toolCheck) {
     Write-Host "ERROR: '$CurlCmd' not found in PATH." -ForegroundColor Red
+    if (-not $serverProcess.HasExited) { $serverProcess.Kill() }
     exit 1
 }
 Write-Host "Using tool: $CurlCmd" -ForegroundColor Magenta
-Write-Host "Starting curl feature tests against httpbin.org..." -ForegroundColor Magenta
+Write-Host "Starting curl feature tests against local server ($baseUrl)..." -ForegroundColor Magenta
 
 # ----------------------------------------------------------------
 # Test 1: Simple GET Request
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "1. Simple GET Request"
-$result = Invoke-CurlTest '-s httpbin.org/get'
+$result = Invoke-CurlTest "-s $baseUrl/get"
 try {
     $json = $result.Stdout | ConvertFrom-Json
-    if ($json.url -eq "http://httpbin.org/get" -and $json.headers.Host -eq "httpbin.org") {
+    if ($json.url -eq "$baseUrl/get" -and $json.headers.Host -eq "127.0.0.1:$httpPort") {
         Write-Pass "GET request returned valid JSON with correct url and Host header."
     } else {
         Write-Fail "Unexpected response content: $($result.Stdout)"
@@ -105,7 +168,7 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "2. Custom Headers"
-$result = Invoke-CurlTest '-s -H "X-Custom-Header: MyValue" httpbin.org/headers'
+$result = Invoke-CurlTest "-s -H `"X-Custom-Header: MyValue`" $baseUrl/headers"
 try {
     $json = $result.Stdout | ConvertFrom-Json
     if ($json.headers.'X-Custom-Header' -eq "MyValue") {
@@ -122,7 +185,7 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "3. POST Request with Form Data"
-$result = Invoke-CurlTest '-s -d "param1=val1&param2=val2" httpbin.org/post'
+$result = Invoke-CurlTest "-s -d `"param1=val1&param2=val2`" $baseUrl/post"
 try {
     $json = $result.Stdout | ConvertFrom-Json
     if ($json.form.param1 -eq "val1" -and $json.form.param2 -eq "val2") {
@@ -139,11 +202,10 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "4. Multi-part Form Data (File Upload)"
-$testFilePath = Join-Path $PSScriptRoot "test_upload_tmp.txt"
+$testFilePath = Join-Path $scriptDir "test_upload_tmp.txt"
 try {
-    # Write file without BOM and with LF line ending
     [System.IO.File]::WriteAllText($testFilePath, "This is a test file for curl.`n")
-    $result = Invoke-CurlTest "-s -F `"file=@$testFilePath`" httpbin.org/post"
+    $result = Invoke-CurlTest "-s -F `"file=@$testFilePath`" $baseUrl/post"
     $json = $result.Stdout | ConvertFrom-Json
     if ($json.files.file -match "This is a test file for curl") {
         Write-Pass "File upload received correctly by server."
@@ -161,7 +223,7 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "5. Basic Authentication"
-$result = Invoke-CurlTest '-s -u user:password httpbin.org/basic-auth/user/password'
+$result = Invoke-CurlTest "-s -u user:password $baseUrl/basic-auth/user/password"
 try {
     $json = $result.Stdout | ConvertFrom-Json
     if ($json.authenticated -eq $true -and $json.user -eq "user") {
@@ -178,11 +240,12 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "6. Following Redirects"
-$result = Invoke-CurlTest '-s -L "httpbin.org/redirect-to?url=http://httpbin.org/get"'
+$encodedRedirectUrl = [System.Uri]::EscapeDataString("$baseUrl/get")
+$result = Invoke-CurlTest "-s -L `"$baseUrl/redirect-to?url=$encodedRedirectUrl`""
 try {
     $json = $result.Stdout | ConvertFrom-Json
-    if ($json.url -eq "http://httpbin.org/get") {
-        Write-Pass "Redirect followed successfully to http://httpbin.org/get."
+    if ($json.url -eq "$baseUrl/get") {
+        Write-Pass "Redirect followed successfully to $baseUrl/get."
     } else {
         Write-Fail "Redirect target mismatch: $($result.Stdout)"
     }
@@ -195,12 +258,10 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "7. Cookie Handling"
-$cookieFile = Join-Path $PSScriptRoot "test_cookies_tmp.txt"
+$cookieFile = Join-Path $scriptDir "test_cookies_tmp.txt"
 try {
-    # Step 1: Set cookie and save it
-    $result1 = Invoke-CurlTest "-s -L -c `"$cookieFile`" httpbin.org/cookies/set/session/123456"
-    # Step 2: Send cookie back
-    $result2 = Invoke-CurlTest "-s -b `"$cookieFile`" httpbin.org/cookies"
+    $result1 = Invoke-CurlTest "-s -L -c `"$cookieFile`" $baseUrl/cookies/set/session/123456"
+    $result2 = Invoke-CurlTest "-s -b `"$cookieFile`" $baseUrl/cookies"
     $json = $result2.Stdout | ConvertFrom-Json
     if ($json.cookies.session -eq "123456") {
         Write-Pass "Cookie session=123456 was saved and sent back correctly."
@@ -218,7 +279,7 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "8. Verbose Output"
-$result = Invoke-CurlTest '-v -s httpbin.org/get' -ReturnStderr
+$result = Invoke-CurlTest "-v -s $baseUrl/get" -ReturnStderr
 $stderr = $result.Stderr
 if ($stderr -match "GET /get HTTP" -and $stderr -match "HTTP/[\d.]+ 200") {
     Write-Pass "Verbose output contains request line and 200 status."
@@ -231,7 +292,7 @@ if ($stderr -match "GET /get HTTP" -and $stderr -match "HTTP/[\d.]+ 200") {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "9. Custom User-Agent"
-$result = Invoke-CurlTest '-s -A "MyTestAgent" httpbin.org/user-agent'
+$result = Invoke-CurlTest "-s -A `"MyTestAgent`" $baseUrl/user-agent"
 try {
     $json = $result.Stdout | ConvertFrom-Json
     if ($json.'user-agent' -eq "MyTestAgent") {
@@ -248,13 +309,13 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "10. Saving Output to File"
-$outFile = Join-Path $PSScriptRoot "test_response_tmp.json"
+$outFile = Join-Path $scriptDir "test_response_tmp.json"
 try {
-    $result = Invoke-CurlTest "-s -o `"$outFile`" httpbin.org/get"
+    $result = Invoke-CurlTest "-s -o `"$outFile`" $baseUrl/get"
     if (Test-Path $outFile) {
         $content = Get-Content $outFile -Raw
         $json = $content | ConvertFrom-Json
-        if ($json.url -eq "http://httpbin.org/get") {
+        if ($json.url -eq "$baseUrl/get") {
             Write-Pass "Response saved to file correctly."
         } else {
             Write-Fail "Saved file content unexpected: $content"
@@ -273,7 +334,7 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "11. HEAD Request"
-$result = Invoke-CurlTest '-s -I httpbin.org/get'
+$result = Invoke-CurlTest "-s -I $baseUrl/get"
 if ($result.Stdout -match "HTTP/[\d.]+ 200" -and $result.Stdout -match "Content-Type") {
     Write-Pass "HEAD request returned status 200 and Content-Type header."
 } else {
@@ -285,10 +346,10 @@ if ($result.Stdout -match "HTTP/[\d.]+ 200" -and $result.Stdout -match "Content-
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "12. Custom HTTP Method (DELETE)"
-$result = Invoke-CurlTest '-s -X DELETE httpbin.org/delete'
+$result = Invoke-CurlTest "-s -X DELETE $baseUrl/delete"
 try {
     $json = $result.Stdout | ConvertFrom-Json
-    if ($json.url -eq "http://httpbin.org/delete") {
+    if ($json.url -eq "$baseUrl/delete") {
         Write-Pass "DELETE request succeeded with correct url."
     } else {
         Write-Fail "DELETE response unexpected: $($result.Stdout)"
@@ -302,10 +363,10 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "13. Sending JSON Data"
-$jsonFile = Join-Path $PSScriptRoot "test_json_tmp.txt"
+$jsonFile = Join-Path $scriptDir "test_json_tmp.txt"
 try {
     [System.IO.File]::WriteAllText($jsonFile, '{"key": "value"}')
-    $result = Invoke-CurlTest "-s -H `"Content-Type: application/json`" -d @$jsonFile httpbin.org/post"
+    $result = Invoke-CurlTest "-s -H `"Content-Type: application/json`" -d @$jsonFile $baseUrl/post"
     $json = $result.Stdout | ConvertFrom-Json
     if ($json.json.key -eq "value") {
         Write-Pass "JSON data received correctly by server."
@@ -323,7 +384,7 @@ try {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "14. Query Parameters with URL Encoding"
-$result = Invoke-CurlTest '-s --data-urlencode "name=John Doe" --data-urlencode "city=New York" -G httpbin.org/get'
+$result = Invoke-CurlTest "-s --data-urlencode `"name=John Doe`" --data-urlencode `"city=New York`" -G $baseUrl/get"
 try {
     $json = $result.Stdout | ConvertFrom-Json
     if ($json.args.name -eq "John Doe" -and $json.args.city -eq "New York") {
@@ -341,9 +402,9 @@ try {
 $totalTests++
 Write-TestHeader "15. Write-out Format (HTTP Status Code)"
 if ($IsWindows) {
-    $result = Invoke-CurlTest '-s -o NUL -w "%{http_code}\n" httpbin.org/get'
+    $result = Invoke-CurlTest "-s -o NUL -w `"%{http_code}\n`" $baseUrl/get"
 } else {
-    $result = Invoke-CurlTest '-s -o /dev/null -w "%{http_code}\n" httpbin.org/get'
+    $result = Invoke-CurlTest "-s -o /dev/null -w `"%{http_code}\n`" $baseUrl/get"
 }
 $statusCode = $result.Stdout.Trim()
 if ($statusCode -eq "200") {
@@ -373,11 +434,22 @@ if ($result.ExitCode -ne 0) {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "17. Insecure SSL (Ignore Certificate Errors)"
-$result = Invoke-CurlTest '-s -k https://self-signed.badssl.com/'
-if ($result.ExitCode -eq 0 -and $result.Stdout.Length -gt 0) {
-    Write-Pass "Insecure SSL connection succeeded with -k flag."
-} else {
-    Write-Fail "Insecure SSL test failed. Exit code: $($result.ExitCode), Output length: $($result.Stdout.Length)"
+# Use local HTTPS server with self-signed cert
+$result = Invoke-CurlTest "-s -k $httpsBaseUrl/get"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    if ($json.url -match "/get" -and $result.ExitCode -eq 0) {
+        Write-Pass "Insecure SSL connection succeeded with -k flag (local self-signed cert)."
+    } else {
+        Write-Fail "Insecure SSL test failed. Output: $($result.Stdout)"
+    }
+} catch {
+    # Even if not JSON, if we got a response with exit code 0, it worked
+    if ($result.ExitCode -eq 0 -and $result.Stdout.Length -gt 0) {
+        Write-Pass "Insecure SSL connection succeeded with -k flag."
+    } else {
+        Write-Fail "Insecure SSL test failed. Exit code: $($result.ExitCode), Output length: $($result.Stdout.Length), Stderr: $($result.Stderr)"
+    }
 }
 
 # ----------------------------------------------------------------
@@ -385,7 +457,6 @@ if ($result.ExitCode -eq 0 -and $result.Stdout.Length -gt 0) {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "18. Connect Timeout"
-# Use a non-routable IP to test connect timeout
 $startTime = Get-Date
 $result = Invoke-CurlTest '-s --connect-timeout 3 http://192.0.2.1/test' -ReturnStderr
 $elapsed = (Get-Date) - $startTime
@@ -396,18 +467,31 @@ if ($result.ExitCode -ne 0 -and $elapsed.TotalSeconds -lt 10) {
 }
 
 # ----------------------------------------------------------------
-# Test 19: Using a Proxy (SKIPPED)
+# Test 19: Using a Proxy
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "19. Using a Proxy"
-Write-Skip "Proxy test skipped - requires a proxy server to be available."
+# Use local Flask server as proxy — curl sends request through proxy to same server
+$result = Invoke-CurlTest "-s -x http://127.0.0.1:$httpPort $baseUrl/get"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    # When using the local server as proxy, curl sends the full URL; our Flask
+    # app will route it to /get and return the standard response.
+    if ($json.url -match "/get" -and $result.ExitCode -eq 0) {
+        Write-Pass "Proxy request succeeded through local server."
+    } else {
+        Write-Fail "Proxy response unexpected: $($result.Stdout)"
+    }
+} catch {
+    Write-Fail "Proxy test failed: $($result.Stdout) Stderr: $($result.Stderr)"
+}
 
 # ----------------------------------------------------------------
 # Test 20: Include Headers in Output
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "20. Include Headers in Output"
-$result = Invoke-CurlTest '-s -i httpbin.org/get'
+$result = Invoke-CurlTest "-s -i $baseUrl/get"
 if ($result.Stdout -match "HTTP/[\d.]+ 200" -and $result.Stdout -match '"url"') {
     Write-Pass "Include headers output contains both HTTP status line and JSON body."
 } else {
@@ -419,7 +503,7 @@ if ($result.Stdout -match "HTTP/[\d.]+ 200" -and $result.Stdout -match '"url"') 
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "21. Simple HEAD Request"
-$result = Invoke-CurlTest '-I httpbin.org/get' -ReturnStderr
+$result = Invoke-CurlTest "-I $baseUrl/get" -ReturnStderr
 $output = $result.Stdout
 if ($output -match "HTTP/[\d.]+ 200" -and $output -match "Content-Type") {
     Write-Pass "Simple HEAD request returned status 200 and Content-Type."
@@ -432,7 +516,7 @@ if ($output -match "HTTP/[\d.]+ 200" -and $output -match "Content-Type") {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "22. Compressed Response"
-$result = Invoke-CurlTest '-s -I --compressed httpbin.org/get'
+$result = Invoke-CurlTest "-s -I --compressed $baseUrl/get"
 if ($result.Stdout -match "HTTP/[\d.]+ 200" -and $result.Stdout -match "Content-Type") {
     Write-Pass "Compressed HEAD request returned valid headers."
 } else {
@@ -444,11 +528,10 @@ if ($result.Stdout -match "HTTP/[\d.]+ 200" -and $result.Stdout -match "Content-
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "23. Range Request (Partial Content)"
-$result = Invoke-CurlTest '-s -r 0-50 httpbin.org/range/1024'
+$result = Invoke-CurlTest "-s -r 0-50 $baseUrl/range/1024"
 if ($result.Stdout.Length -eq 51) {
     Write-Pass "Range request returned exactly 51 bytes."
 } else {
-    # Some servers may return the full range differently
     if ($result.Stdout.Length -gt 0 -and $result.Stdout.Length -le 52) {
         Write-Pass "Range request returned $($result.Stdout.Length) bytes (within expected range)."
     } else {
@@ -461,19 +544,17 @@ if ($result.Stdout.Length -eq 51) {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "24. Saving with Remote Filename (-O)"
-$savedFile = Join-Path $PSScriptRoot "get"
+$savedFile = Join-Path $scriptDir "get"
 try {
-    # Remove any existing file first
     if (Test-Path $savedFile) { Remove-Item $savedFile -Force }
-    # Run from the script's directory so the file is saved there
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $CurlCmd
-    $psi.Arguments = "-s -O httpbin.org/get"
+    $psi.Arguments = "-s -O $baseUrl/get"
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
-    $psi.WorkingDirectory = $PSScriptRoot
+    $psi.WorkingDirectory = $scriptDir
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $psi
     $process.Start() | Out-Null
@@ -484,7 +565,7 @@ try {
     if (Test-Path $savedFile) {
         $content = Get-Content $savedFile -Raw
         $json = $content | ConvertFrom-Json
-        if ($json.url -eq "http://httpbin.org/get") {
+        if ($json.url -eq "$baseUrl/get") {
             Write-Pass "File 'get' created with correct content using -O flag."
         } else {
             Write-Fail "Saved file content unexpected: $content"
@@ -504,7 +585,7 @@ try {
 $totalTests++
 Write-TestHeader "25. Maximum Time for Request (--max-time)"
 $startTime = Get-Date
-$result = Invoke-CurlTest '-s --max-time 3 httpbin.org/delay/10' -ReturnStderr
+$result = Invoke-CurlTest "-s --max-time 3 $baseUrl/delay/10" -ReturnStderr
 $elapsed = (Get-Date) - $startTime
 if ($result.ExitCode -eq 28 -and $elapsed.TotalSeconds -lt 8) {
     Write-Pass "Max-time triggered correctly (exit code 28, elapsed $([math]::Round($elapsed.TotalSeconds, 1))s)."
@@ -515,8 +596,10 @@ if ($result.ExitCode -eq 28 -and $elapsed.TotalSeconds -lt 8) {
 }
 
 # ----------------------------------------------------------------
-# Summary
+# Stop the local server and print summary
 # ----------------------------------------------------------------
+if (-not $serverProcess.HasExited) { $serverProcess.Kill() }
+
 Write-Host "`n========================================" -ForegroundColor Magenta
 Write-Host "TEST SUMMARY" -ForegroundColor Magenta
 Write-Host "========================================" -ForegroundColor Magenta
