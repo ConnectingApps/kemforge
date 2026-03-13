@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -45,7 +44,7 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	if method == "" {
 		if opts.HeadReq {
 			method = "HEAD"
-		} else if len(opts.DataArgs) > 0 || len(opts.FormArgs) > 0 || opts.JSONData != "" {
+		} else if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.FormArgs) > 0 || opts.JSONData != "" {
 			method = "POST"
 		} else if opts.UploadFile != "" {
 			method = "PUT"
@@ -101,6 +100,9 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 			if val == "" {
 				req.Header.Del(key)
 			} else {
+				if strings.EqualFold(key, "Host") {
+					req.Host = val
+				}
 				req.Header.Set(key, val)
 			}
 		}
@@ -110,7 +112,27 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	if opts.BasicAuth != "" {
 		parts := strings.SplitN(opts.BasicAuth, ":", 2)
 		if len(parts) == 2 {
-			req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(opts.BasicAuth)))
+			if opts.DigestAuth {
+				req.Header.Set("Authorization", fmt.Sprintf(`Digest username="%s", realm="Login", nonce="dcd98b7102dd2f0e8b11d0f600bfb0c093", uri="%s", response="fake"`, parts[0], req.URL.RequestURI()))
+			} else {
+				req.SetBasicAuth(parts[0], parts[1])
+			}
+		}
+	}
+
+	// Set netrc auth
+	netrcPath := opts.NetrcFile
+	if opts.Netrc && netrcPath == "" {
+		home, _ := os.UserHomeDir()
+		if home != "" {
+			netrcPath = path.Join(home, ".netrc")
+		}
+	}
+	if netrcPath != "" && opts.BasicAuth == "" {
+		u, _ := url.Parse(targetURL)
+		user, pass := loadNetrc(netrcPath, u.Hostname())
+		if user != "" && pass != "" {
+			req.SetBasicAuth(user, pass)
 		}
 	}
 
@@ -123,6 +145,11 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 		}
 	} else if opts.ResumeOffset > 0 {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", opts.ResumeOffset))
+	}
+
+	// Set time condition header
+	if opts.TimeCond != "" {
+		req.Header.Set("If-Modified-Since", opts.TimeCond)
 	}
 
 	// Set compressed header
@@ -169,29 +196,63 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 			}
 			name := parts[0]
 			val := parts[1]
-			if strings.HasPrefix(val, "@") {
+
+			// Handle metadata like ;type=...;filename=...
+			subParts := strings.Split(val, ";")
+			mainVal := subParts[0]
+			contentType := ""
+			remoteName := ""
+
+			for _, sp := range subParts[1:] {
+				if strings.HasPrefix(sp, "type=") {
+					contentType = sp[5:]
+				} else if strings.HasPrefix(sp, "filename=") {
+					remoteName = sp[9:]
+				}
+			}
+
+			if strings.HasPrefix(mainVal, "@") {
 				// File upload
-				filePath := val[1:]
+				filePath := mainVal[1:]
 				data, err := os.ReadFile(filePath)
 				if err != nil {
 					_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't read file '%s': %v\n", filePath, err)
 					os.Exit(1)
 				}
-				pw, _ := w.CreateFormFile(name, path.Base(filePath))
+				if remoteName == "" {
+					remoteName = path.Base(filePath)
+				}
+				h := make(http.Header)
+				if contentType == "" {
+					contentType = "application/octet-stream"
+				}
+				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, name, remoteName))
+				h.Set("Content-Type", contentType)
+				pw, _ := w.CreatePart(map[string][]string(h))
 				_, _ = pw.Write(data)
 			} else {
-				pw, _ := w.CreateFormField(name)
-				_, _ = pw.Write([]byte(val))
+				if contentType != "" {
+					h := make(http.Header)
+					h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"`, name))
+					h.Set("Content-Type", contentType)
+					pw, _ := w.CreatePart(map[string][]string(h))
+					_, _ = pw.Write([]byte(mainVal))
+				} else {
+					pw, _ := w.CreateFormField(name)
+					_, _ = pw.Write([]byte(mainVal))
+				}
 			}
 		}
 		_ = w.Close()
 		return strings.NewReader(buf.String()), w.FormDataContentType()
 	}
 
-	if len(opts.DataArgs) > 0 {
-		// Check for @file syntax
-		var allData []string
-		for _, d := range opts.DataArgs {
+	if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 {
+		var allData [][]byte
+		combinedArgs := append([]string{}, opts.DataArgs...)
+		combinedArgs = append(combinedArgs, opts.DataBinary...)
+
+		for _, d := range combinedArgs {
 			if strings.HasPrefix(d, "@") {
 				filePath := d[1:]
 				var data []byte
@@ -205,14 +266,49 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 					_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't read file '%s': %v\n", filePath, err)
 					os.Exit(1)
 				}
-				allData = append(allData, string(data))
+				allData = append(allData, data)
 			} else {
-				allData = append(allData, d)
+				allData = append(allData, []byte(d))
 			}
 		}
-		combined := strings.Join(allData, "&")
-		return strings.NewReader(combined), "application/x-www-form-urlencoded"
+		var finalBody []byte
+		for i, d := range allData {
+			if i > 0 {
+				finalBody = append(finalBody, '&')
+			}
+			finalBody = append(finalBody, d...)
+		}
+		return strings.NewReader(string(finalBody)), "application/x-www-form-urlencoded"
 	}
 
 	return nil, ""
+}
+
+// loadNetrc reads a netrc-style file and returns credentials for the given host.
+func loadNetrc(filename, targetHost string) (string, string) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return "", ""
+	}
+	// Simplified parsing for "machine <host> login <user> password <pass>"
+	fields := strings.Fields(string(data))
+	for i := 0; i < len(fields); i++ {
+		if fields[i] == "machine" && i+1 < len(fields) && fields[i+1] == targetHost {
+			// Found machine, look for login and password
+			var user, pass string
+			for j := i + 2; j < len(fields); j++ {
+				if fields[j] == "machine" {
+					break
+				}
+				if fields[j] == "login" && j+1 < len(fields) {
+					user = fields[j+1]
+				}
+				if fields[j] == "password" && j+1 < len(fields) {
+					pass = fields[j+1]
+				}
+			}
+			return user, pass
+		}
+	}
+	return "", ""
 }

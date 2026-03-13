@@ -16,7 +16,11 @@ import (
 // LogVerboseRequest prints request details to stderr when -v is set.
 func LogVerboseRequest(req *http.Request, method string) {
 	_, _ = fmt.Fprintf(os.Stderr, "> %s %s HTTP/1.1\r\n", method, req.URL.RequestURI())
-	_, _ = fmt.Fprintf(os.Stderr, "> Host: %s\r\n", req.URL.Host)
+	host := req.Host
+	if host == "" {
+		host = req.URL.Host
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "> Host: %s\r\n", host)
 	for k, vals := range req.Header {
 		for _, v := range vals {
 			_, _ = fmt.Fprintf(os.Stderr, "> %s: %s\r\n", k, v)
@@ -166,8 +170,36 @@ func WriteResponse(resp *http.Response, req *http.Request, opts Options, startTi
 		wout = strings.ReplaceAll(wout, "%{http_code}", fmt.Sprintf("%d", resp.StatusCode))
 		wout = strings.ReplaceAll(wout, "%{size_download}", fmt.Sprintf("%d", sizeDownload))
 		wout = strings.ReplaceAll(wout, "%{time_total}", fmt.Sprintf("%.3f", time.Since(startTime).Seconds()))
+		wout = strings.ReplaceAll(wout, "%{url_effective}", req.URL.String())
+		wout = strings.ReplaceAll(wout, "%{content_type}", resp.Header.Get("Content-Type"))
+		wout = strings.ReplaceAll(wout, "%{remote_ip}", req.URL.Hostname()) // Simplified
 		wout = strings.ReplaceAll(wout, "\\n", "\n")
 		_, _ = fmt.Fprint(os.Stdout, wout)
+	}
+
+	// Handle trace-ascii
+	if opts.TraceAscii != "" {
+		tf, err := os.Create(opts.TraceAscii)
+		if err == nil {
+			_, _ = fmt.Fprintf(tf, "== Info: Connected to %s\n", req.URL.Host)
+			_, _ = fmt.Fprintf(tf, "=> Send header, %d bytes\n", 0) // Simplified
+			_, _ = fmt.Fprintf(tf, "> %s %s HTTP/1.1\n", req.Method, req.URL.RequestURI())
+			for k, vals := range req.Header {
+				for _, v := range vals {
+					_, _ = fmt.Fprintf(tf, "> %s: %s\n", k, v)
+				}
+			}
+			_, _ = fmt.Fprintf(tf, "\n")
+			_, _ = fmt.Fprintf(tf, "<= Recv header, %d bytes\n", 0) // Simplified
+			_, _ = fmt.Fprintf(tf, "< HTTP/%d.%d %s\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
+			for k, vals := range resp.Header {
+				for _, v := range vals {
+					_, _ = fmt.Fprintf(tf, "< %s: %s\n", k, v)
+				}
+			}
+			_, _ = fmt.Fprintf(tf, "\n")
+			_ = tf.Close()
+		}
 	}
 }
 

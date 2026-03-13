@@ -28,15 +28,16 @@ type Options struct {
 	ProxyURL      string // -x
 	ConnectTmout  float64
 	MaxTime       float64
-	RetryCount    int    // --retry
-	MaxRedirs     int    // --max-redirs
-	Referer       string // -e
-	FailOnError   bool   // -f
-	JSONData      string // --json
-	ConfigPath    string // -K
-	LimitRate     int64  // --limit-rate (bytes per second)
-	Parallel      bool   // -Z
-	RangeHeader   string // -r
+	RetryCount    int      // --retry
+	MaxRedirs     int      // --max-redirs
+	Referer       string   // -e
+	FailOnError   bool     // -f
+	JSONData      string   // --json
+	DataBinary    []string // --data-binary
+	ConfigPath    string   // -K
+	LimitRate     int64    // --limit-rate (bytes per second)
+	Parallel      bool     // -Z
+	RangeHeader   string   // -r
 	Headers       []string
 	DataArgs      []string // -d
 	FormArgs      []string // -F
@@ -48,6 +49,19 @@ type Options struct {
 	AutoResume    bool     // -C -
 	HTTP11        bool     // --http1.1
 	TargetURLs    []string
+	CertFile      string // --cert
+	KeyFile       string // --key
+	DigestAuth    bool   // --digest
+	NetrcFile     string // --netrc-file
+	UnixSocket    string // --unix-socket
+	TimeCond      string // -z
+	TraceAscii    string // --trace-ascii
+	DohURL        string // --doh-url
+	IPv4          bool   // -4
+	IPv6          bool   // -6
+	Netrc         bool   // -n
+	CookieEnable  bool   // true if -b was specified
+	ProxyUser     string // --proxy-user user:pass
 }
 
 // ParseArgs parses command-line arguments into an Options struct.
@@ -147,10 +161,59 @@ func ParseArgs(args []string) Options {
 			}
 		case a == "-f" || a == "--fail":
 			opts.FailOnError = true
-		case a == "-b":
+		case a == "-b" || a == "--cookie":
+			opts.CookieEnable = true
 			i++
 			if i < len(args) {
 				opts.CookieFile = args[i]
+			}
+		case a == "--data-binary":
+			i++
+			if i < len(args) {
+				opts.DataBinary = append(opts.DataBinary, args[i])
+			}
+		case a == "--cert":
+			i++
+			if i < len(args) {
+				opts.CertFile = args[i]
+			}
+		case a == "--key":
+			i++
+			if i < len(args) {
+				opts.KeyFile = args[i]
+			}
+		case a == "--digest":
+			opts.DigestAuth = true
+		case a == "--netrc-file":
+			i++
+			if i < len(args) {
+				opts.NetrcFile = args[i]
+			}
+		case a == "--unix-socket":
+			i++
+			if i < len(args) {
+				opts.UnixSocket = args[i]
+			}
+		case a == "-z" || a == "--time-cond":
+			i++
+			if i < len(args) {
+				opts.TimeCond = args[i]
+			}
+		case a == "--trace-ascii":
+			i++
+			if i < len(args) {
+				opts.TraceAscii = args[i]
+			}
+		case a == "-n" || a == "--netrc":
+			opts.Netrc = true
+		case a == "-4" || a == "--ipv4":
+			opts.IPv4 = true
+		case a == "-6" || a == "--ipv6":
+			opts.IPv6 = true
+		case a == "--doh-url":
+			i++
+			if i < len(args) {
+				opts.DohURL = args[i]
 			}
 		case a == "-u":
 			i++
@@ -166,6 +229,11 @@ func ParseArgs(args []string) Options {
 			i++
 			if i < len(args) {
 				opts.ProxyURL = args[i]
+			}
+		case a == "--proxy-user":
+			i++
+			if i < len(args) {
+				opts.ProxyUser = args[i]
 			}
 		case a == "-d":
 			i++

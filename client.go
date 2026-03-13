@@ -34,11 +34,20 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 
 	// Set proxy
+	transport.Proxy = http.ProxyFromEnvironment
 	if opts.ProxyURL != "" {
 		proxyU, err := url.Parse(opts.ProxyURL)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: invalid proxy URL: %v\n", err)
 			os.Exit(1)
+		}
+		if opts.ProxyUser != "" {
+			parts := strings.SplitN(opts.ProxyUser, ":", 2)
+			if len(parts) == 2 {
+				proxyU.User = url.UserPassword(parts[0], parts[1])
+			} else {
+				proxyU.User = url.User(opts.ProxyUser)
+			}
 		}
 		transport.Proxy = http.ProxyURL(proxyU)
 	}
@@ -59,6 +68,14 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 
 	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if opts.UnixSocket != "" {
+			return dialer.DialContext(ctx, "unix", opts.UnixSocket)
+		}
+		if opts.IPv4 {
+			network = "tcp4"
+		} else if opts.IPv6 {
+			network = "tcp6"
+		}
 		if target, ok := resolveMap[addr]; ok {
 			addr = target
 		}
@@ -84,9 +101,19 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 		}
 	}
 
+	// Set client certificates
+	if opts.CertFile != "" && opts.KeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: failed to load client cert/key: %v\n", err)
+		} else {
+			transport.TLSClientConfig.Certificates = []tls.Certificate{cert}
+		}
+	}
+
 	// Use a cookie jar when saving cookies with -c or loading with -b
 	var jar *simpleCookieJar
-	if opts.CookieJar != "" || opts.CookieFile != "" {
+	if opts.CookieJar != "" || opts.CookieEnable {
 		jar = &simpleCookieJar{entries: make(map[string]map[string]*http.Cookie)}
 		client.Jar = jar
 	}

@@ -53,11 +53,20 @@ func HandleRequestError(err error, req *http.Request, ctx context.Context, opts 
 			os.Exit(28)
 		}
 	}
+	if strings.Contains(err.Error(), "redirects followed") {
+		if !opts.Silent || opts.ShowErrors {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: %v\n", err)
+		}
+		os.Exit(47)
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "tls") || strings.Contains(strings.ToLower(err.Error()), "certificate") {
+		if !opts.Silent || opts.ShowErrors {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (60) SSL certificate problem: %v\n", err)
+		}
+		os.Exit(60)
+	}
 	if !opts.Silent || opts.ShowErrors {
 		_, _ = fmt.Fprintf(os.Stderr, "kemforge: %v\n", err)
-	}
-	if strings.Contains(err.Error(), "redirects followed") {
-		os.Exit(47)
 	}
 	os.Exit(1)
 }
