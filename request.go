@@ -47,6 +47,8 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 			method = "HEAD"
 		} else if len(opts.DataArgs) > 0 || len(opts.FormArgs) > 0 || opts.JSONData != "" {
 			method = "POST"
+		} else if opts.UploadFile != "" {
+			method = "PUT"
 		} else {
 			method = "GET"
 		}
@@ -94,7 +96,13 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	for _, h := range opts.Headers {
 		parts := strings.SplitN(h, ":", 2)
 		if len(parts) == 2 {
-			req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+			key := strings.TrimSpace(parts[0])
+			val := strings.TrimSpace(parts[1])
+			if val == "" {
+				req.Header.Del(key)
+			} else {
+				req.Header.Set(key, val)
+			}
 		}
 	}
 
@@ -109,6 +117,12 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	// Set range header
 	if opts.RangeHeader != "" {
 		req.Header.Set("Range", "bytes="+opts.RangeHeader)
+	} else if opts.AutoResume && opts.OutputFile != "" {
+		if info, err := os.Stat(opts.OutputFile); err == nil {
+			req.Header.Set("Range", fmt.Sprintf("bytes=%d-", info.Size()))
+		}
+	} else if opts.ResumeOffset > 0 {
+		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", opts.ResumeOffset))
 	}
 
 	// Set compressed header
@@ -121,6 +135,15 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 
 // buildRequestBody creates the request body and content type from the options.
 func buildRequestBody(opts Options) (io.Reader, string) {
+	if opts.UploadFile != "" {
+		f, err := os.Open(opts.UploadFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't read file '%s': %v\n", opts.UploadFile, err)
+			os.Exit(1)
+		}
+		return f, ""
+	}
+
 	if opts.JSONData != "" {
 		data := opts.JSONData
 		if strings.HasPrefix(data, "@") {
@@ -171,7 +194,13 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 		for _, d := range opts.DataArgs {
 			if strings.HasPrefix(d, "@") {
 				filePath := d[1:]
-				data, err := os.ReadFile(filePath)
+				var data []byte
+				var err error
+				if filePath == "-" {
+					data, err = io.ReadAll(os.Stdin)
+				} else {
+					data, err = os.ReadFile(filePath)
+				}
 				if err != nil {
 					_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't read file '%s': %v\n", filePath, err)
 					os.Exit(1)

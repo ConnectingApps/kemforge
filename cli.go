@@ -42,6 +42,11 @@ type Options struct {
 	FormArgs      []string // -F
 	URLEncodeArgs []string // --data-urlencode
 	ResolveArgs   []string // --resolve
+	DumpHeader    string   // --dump-header
+	UploadFile    string   // -T
+	ResumeOffset  int64    // -C
+	AutoResume    bool     // -C -
+	HTTP11        bool     // --http1.1
 	TargetURLs    []string
 }
 
@@ -74,6 +79,27 @@ func ParseArgs(args []string) Options {
 			if i < len(args) {
 				_, _ = fmt.Sscanf(args[i], "%d", &opts.MaxRedirs)
 			}
+		case a == "--dump-header":
+			i++
+			if i < len(args) {
+				opts.DumpHeader = args[i]
+			}
+		case a == "-T" || a == "--upload-file":
+			i++
+			if i < len(args) {
+				opts.UploadFile = args[i]
+			}
+		case a == "-C" || a == "--continue-at":
+			i++
+			if i < len(args) {
+				if args[i] == "-" {
+					opts.AutoResume = true
+				} else {
+					_, _ = fmt.Sscanf(args[i], "%d", &opts.ResumeOffset)
+				}
+			}
+		case a == "--http1.1":
+			opts.HTTP11 = true
 		case a == "-k" || a == "--insecure":
 			opts.Insecure = true
 		case a == "--compressed":
@@ -194,7 +220,7 @@ func ParseArgs(args []string) Options {
 		case strings.HasPrefix(a, "-"):
 			// Unknown flag, ignore
 		default:
-			opts.TargetURLs = append(opts.TargetURLs, a)
+			opts.TargetURLs = append(opts.TargetURLs, expandGlob(a)...)
 		}
 	}
 
@@ -258,4 +284,90 @@ func parseRate(s string) int64 {
 	var val int64
 	_, _ = fmt.Sscanf(valStr, "%d", &val)
 	return val * unit
+}
+
+func expandGlob(s string) []string {
+	// Very basic implementation of {} and []
+	urls := []string{s}
+
+	// Handle {}
+	for {
+		newURLs := []string{}
+		found := false
+		for _, u := range urls {
+			start := strings.Index(u, "{")
+			end := strings.Index(u, "}")
+			if start != -1 && end > start {
+				found = true
+				prefix := u[:start]
+				suffix := u[end+1:]
+				options := strings.Split(u[start+1:end], ",")
+				for _, opt := range options {
+					newURLs = append(newURLs, prefix+opt+suffix)
+				}
+			} else {
+				newURLs = append(newURLs, u)
+			}
+		}
+		urls = newURLs
+		if !found {
+			break
+		}
+	}
+
+	// Handle []
+	for {
+		newURLs := []string{}
+		found := false
+		for _, u := range urls {
+			start := strings.Index(u, "[")
+			end := strings.Index(u, "]")
+			if start != -1 && end > start {
+				content := u[start+1 : end]
+				if strings.Contains(content, "-") {
+					parts := strings.SplitN(content, "-", 2)
+					if len(parts) == 2 {
+						found = true
+						prefix := u[:start]
+						suffix := u[end+1:]
+
+						// Try numeric range
+						var low, high int
+						_, err1 := fmt.Sscanf(parts[0], "%d", &low)
+						_, err2 := fmt.Sscanf(parts[1], "%d", &high)
+						if err1 == nil && err2 == nil {
+							for i := low; i <= high; i++ {
+								// Handle leading zeros if any
+								format := "%d"
+								if len(parts[0]) == len(parts[1]) && strings.HasPrefix(parts[0], "0") {
+									format = fmt.Sprintf("%%0%dd", len(parts[0]))
+								}
+								newURLs = append(newURLs, prefix+fmt.Sprintf(format, i)+suffix)
+							}
+						} else if len(parts[0]) == 1 && len(parts[1]) == 1 {
+							// Char range
+							for c := parts[0][0]; c <= parts[1][0]; c++ {
+								newURLs = append(newURLs, prefix+string(c)+suffix)
+							}
+						} else {
+							newURLs = append(newURLs, u)
+							found = false
+						}
+					} else {
+						newURLs = append(newURLs, u)
+					}
+				} else {
+					newURLs = append(newURLs, u)
+				}
+			} else {
+				newURLs = append(newURLs, u)
+			}
+		}
+		urls = newURLs
+		if !found {
+			break
+		}
+	}
+
+	return urls
 }

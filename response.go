@@ -38,14 +38,36 @@ func LogVerboseResponse(resp *http.Response) {
 
 // WriteResponse handles all output: file creation (-o, -O), HEAD headers (-I),
 // include headers (-i), body decompression (--compressed), and write-out (-w).
-func WriteResponse(resp *http.Response, req *http.Request, opts Options) {
+func WriteResponse(resp *http.Response, req *http.Request, opts Options, startTime time.Time) {
+	var sizeDownload int64
+	// Dump headers if --dump-header specified
+	if opts.DumpHeader != "" {
+		df, err := os.Create(opts.DumpHeader)
+		if err == nil {
+			_, _ = fmt.Fprintf(df, "HTTP/%d.%d %s\r\n", resp.ProtoMajor, resp.ProtoMinor, resp.Status)
+			for k, vals := range resp.Header {
+				for _, v := range vals {
+					_, _ = fmt.Fprintf(df, "%s: %s\r\n", k, v)
+				}
+			}
+			_, _ = fmt.Fprintf(df, "\r\n")
+			_ = df.Close()
+		}
+	}
+
 	// Determine output writer
 	var output io.Writer = os.Stdout
 	if opts.OutputFile != "" {
 		if opts.OutputFile == "/dev/null" || opts.OutputFile == "NUL" {
 			output = io.Discard
 		} else {
-			f, err := os.Create(opts.OutputFile)
+			flags := os.O_CREATE | os.O_WRONLY
+			if opts.AutoResume || opts.ResumeOffset > 0 {
+				flags |= os.O_APPEND
+			} else {
+				flags |= os.O_TRUNC
+			}
+			f, err := os.OpenFile(opts.OutputFile, flags, 0644)
 			if err != nil {
 				_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't open '%s': %v\n", opts.OutputFile, err)
 				os.Exit(1)
@@ -114,7 +136,8 @@ func WriteResponse(resp *http.Response, req *http.Request, opts Options) {
 			bodyReader = &rateLimitedReader{r: bodyReader, bytesPerSec: opts.LimitRate}
 		}
 
-		_, _ = io.Copy(output, bodyReader)
+		n, _ := io.Copy(output, bodyReader)
+		sizeDownload = n
 	}
 
 	// Print TLS information if available
@@ -141,6 +164,8 @@ func WriteResponse(resp *http.Response, req *http.Request, opts Options) {
 	if opts.WriteOut != "" {
 		wout := opts.WriteOut
 		wout = strings.ReplaceAll(wout, "%{http_code}", fmt.Sprintf("%d", resp.StatusCode))
+		wout = strings.ReplaceAll(wout, "%{size_download}", fmt.Sprintf("%d", sizeDownload))
+		wout = strings.ReplaceAll(wout, "%{time_total}", fmt.Sprintf("%.3f", time.Since(startTime).Seconds()))
 		wout = strings.ReplaceAll(wout, "\\n", "\n")
 		_, _ = fmt.Fprint(os.Stdout, wout)
 	}

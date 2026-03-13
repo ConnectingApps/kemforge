@@ -35,6 +35,7 @@ func main() {
 }
 
 func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, targetURL string) {
+	startTime := time.Now()
 	req := NewHTTPRequest(opts, targetURL)
 
 	// Load cookies from file into jar
@@ -104,5 +105,5 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 		saveCookiesFromJar(jar, opts.CookieJar)
 	}
 
-	WriteResponse(resp, req, opts)
+	WriteResponse(resp, req, opts, startTime)
 }

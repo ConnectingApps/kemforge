@@ -23,9 +23,14 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 		},
 	}
 
-	// Enable HTTP/2 support on the custom transport
-	if err := http2.ConfigureTransport(transport); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "kemforge: failed to configure HTTP/2: %v\n", err)
+	// Enable HTTP/2 support on the custom transport unless --http1.1 is set
+	if !opts.HTTP11 {
+		if err := http2.ConfigureTransport(transport); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: failed to configure HTTP/2: %v\n", err)
+		}
+	} else {
+		transport.ForceAttemptHTTP2 = false
+		transport.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)
 	}
 
 	// Set proxy
