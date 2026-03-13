@@ -1609,3 +1609,162 @@ curl -s -k --pinnedpubkey server.crt https://127.0.0.1:8443/get
 ```
 **Output**:
 (Successful connection if the server's public key matches the pinned key.)
+
+---
+
+### 116. OPTIONS Request
+**Description**: Sends an `OPTIONS` request to check supported methods.
+**Input**:
+```bash
+curl -s -X OPTIONS -i http://127.0.0.1:8080/get
+```
+**Output**:
+(Returns 204 with `Allow` header containing supported methods.)
+
+---
+
+### 117. TRACE Request
+**Description**: Sends a `TRACE` request which echoes the received request.
+**Input**:
+```bash
+curl -s -X TRACE http://127.0.0.1:8080/get
+```
+**Output**:
+(Returns the request headers echoed in the body.)
+
+---
+
+### 118. HEAD Request with Redirects
+**Description**: Verifies that `HEAD` with `-L` follows redirects while remaining a `HEAD` request.
+**Input**:
+```bash
+curl -s -I -L http://127.0.0.1:8080/redirect-to?url=/get
+```
+**Output**:
+(Follows redirect and returns headers of the final resource.)
+
+---
+
+### 119. Authentication with Username Only (Interactive Prompt Simulation)
+**Description**: Testing `curl -u "username:"`. Appending a colon tells `curl` that there is no password, preventing it from prompting the user interactively.
+**Input**:
+```bash
+curl -s -u "user:" http://127.0.0.1:8080/basic-auth-check
+```
+**Output**:
+(Returns basic auth header for user with empty password.)
+
+---
+
+### 120. Authentication with Colon in Credentials
+**Description**: Testing passwords that contain colons.
+**Input**:
+```bash
+curl -s -u "user:pass:word" http://127.0.0.1:8080/basic-auth-check
+```
+**Output**:
+(Returns basic auth header for "user" with password "pass:word".)
+
+---
+
+### 121. Silent and Verbose Combined
+**Description**: Testing `curl -s -v`. `-s` suppresses the progress meter, but `-v` still shows request/response details.
+**Input**:
+```bash
+curl -s -v http://127.0.0.1:8080/get
+```
+**Output**:
+(Shows verbose connection and protocol details while hiding progress.)
+
+---
+
+### 122. Include Headers with Output File
+**Description**: Using `-i` with `-o` ensures headers are saved to the file.
+**Input**:
+```bash
+curl -s -i -o output.txt http://127.0.0.1:8080/get
+```
+**Output**:
+(The file `output.txt` contains both the response headers and the body.)
+
+---
+
+### 123. Mixed Source Data in POST
+**Description**: Combining raw strings and file data in the same request.
+**Input**:
+```bash
+echo "val2" > data.txt
+curl -s -d "param1=val1" -d @data.txt http://127.0.0.1:8080/post
+```
+**Output**:
+(The POST data contains concatenated parameters from both sources.)
+
+---
+
+### 124. Multiple @file Arguments in POST
+**Description**: Multiple `-d @file` arguments are correctly concatenated.
+**Input**:
+```bash
+echo "a=1" > file1.txt
+echo "b=2" > file2.txt
+curl -s -d @file1.txt -d @file2.txt http://127.0.0.1:8080/post
+```
+**Output**:
+(The POST data contains concatenated parameters from all files.)
+
+---
+
+### 125. Multiple Files in One Form Field
+**Description**: Testing the syntax for multiple files in a single form field using multiple `-F` flags.
+**Input**:
+```bash
+curl -s -F "images=@img1.jpg" -F "images=@img2.jpg" http://127.0.0.1:8080/post
+```
+**Output**:
+(The request contains multiple parts with the same field name `images`.)
+
+---
+
+### 126. Exit 3: Malformed URL
+**Description**: Verifying exit code for malformed URL.
+**Input**:
+```bash
+curl "http://[invalid-url]"
+```
+**Output**:
+(Exit code 3)
+
+---
+
+### 127. Exit 7: Failed to Connect
+**Description**: Verifying exit code for connection refusal.
+**Input**:
+```bash
+curl http://127.0.0.1:1
+```
+**Output**:
+(Exit code 7)
+
+---
+
+### 128. Environment Variable CURL_CA_BUNDLE
+**Description**: Verifying the tool respects the `CURL_CA_BUNDLE` environment variable.
+**Input**:
+```bash
+$env:CURL_CA_BUNDLE="nonexistent.pem"
+curl https://127.0.0.1:8443/get
+```
+**Output**:
+(Fails with exit code 77 or 60 due to invalid CA bundle.)
+
+---
+
+### 129. Resuming Already Complete Download
+**Description**: Testing behavior when trying to resume a download that is already complete.
+**Input**:
+```bash
+echo "full content" > download.txt
+curl -s -C - -o download.txt http://127.0.0.1:8080/range-test
+```
+**Output**:
+(Success, no extra data appended or error depending on implementation.)

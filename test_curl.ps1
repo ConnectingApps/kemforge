@@ -1970,6 +1970,228 @@ try {
 }
 
 # ----------------------------------------------------------------
+# Test 116: OPTIONS Request
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "116. OPTIONS Request"
+$result = Invoke-CurlTest "-s -X OPTIONS -i $baseUrl/get"
+if ($result.Stdout -match "Allow:.*TRACE") {
+    Write-Pass "OPTIONS request returned correct Allow header."
+} else {
+    Write-Fail "OPTIONS request failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 117: TRACE Request
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "117. TRACE Request"
+$result = Invoke-CurlTest "-s -X TRACE $baseUrl/get"
+if ($result.Stdout -match "TRACE /get HTTP/1.1") {
+    Write-Pass "TRACE request echoed the request correctly."
+} else {
+    Write-Fail "TRACE request failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 118: HEAD Request with Redirects
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "118. HEAD Request with Redirects"
+$result = Invoke-CurlTest "-s -I -L $baseUrl/redirect-to?url=/get"
+if ($result.Stdout -match "HTTP/1.1 200 OK" -and $result.Stdout -match "Content-Type: application/json") {
+    Write-Pass "HEAD with -L followed redirect and returned final headers."
+} else {
+    Write-Fail "HEAD with -L failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 119: Authentication with Username Only (Interactive Prompt Simulation)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "119. Authentication with Username Only (Interactive Prompt Simulation)"
+$result = Invoke-CurlTest "-s -u `"user:`" $baseUrl/basic-auth-check"
+if ($result.Stdout -match "`"authorization`":\s?`"Basic dXNlcjo=`"") {
+    Write-Pass "Auth with username: (empty password) worked and didn't hang."
+} else {
+    Write-Fail "Auth with username: failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 120: Authentication with Colon in Credentials
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "120. Authentication with Colon in Credentials"
+$result = Invoke-CurlTest "-s -u `"user:pass:word`" $baseUrl/basic-auth-check"
+if ($result.Stdout -match "`"authorization`":\s?`"Basic dXNlcjpwYXNzOndvcmQ=`"") {
+    Write-Pass "Auth with colon in password worked."
+} else {
+    Write-Fail "Auth with colon in password failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 121: Silent and Verbose Combined
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "121. Silent and Verbose Combined"
+$result = Invoke-CurlTest "-s -v $baseUrl/get"
+if ($result.Stderr -match "> GET /get HTTP/1.1" -and $result.Stdout -match "`"url`":") {
+    Write-Pass "Silent and Verbose combined worked (output in stdout, details in stderr)."
+} else {
+    Write-Fail "Silent and Verbose failed. Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 122: Include Headers with Output File
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "122. Include Headers with Output File"
+$outFile = Join-Path $scriptDir "test122.txt"
+try {
+    Invoke-CurlTest "-s -i -o `"$outFile`" $baseUrl/get" | Out-Null
+    $content = Get-Content $outFile -Raw
+    if ($content -match "HTTP/1.1 200 OK" -and $content -match "`"url`":") {
+        Write-Pass "Headers and body correctly saved to file with -i -o."
+    } else {
+        Write-Fail "Headers/body missing from file. Content: $content"
+    }
+} finally {
+    if (Test-Path $outFile) { Remove-Item $outFile }
+}
+
+# ----------------------------------------------------------------
+# Test 123: Mixed Source Data in POST
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "123. Mixed Source Data in POST"
+$dataFile = Join-Path $scriptDir "data123.txt"
+"param2=val2" | Out-File -FilePath $dataFile -Encoding ascii
+try {
+    $result = Invoke-CurlTest "-s -d `"param1=val1`" -d @`"$dataFile`" $baseUrl/post"
+    if ($result.Stdout -match "`"param1`":\s?`"val1`"" -and $result.Stdout -match "`"param2`":\s?`"val2`"") {
+        Write-Pass "Mixed source data in POST worked."
+    } else {
+        Write-Fail "Mixed source data failed: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $dataFile) { Remove-Item $dataFile }
+}
+
+# ----------------------------------------------------------------
+# Test 124: Multiple @file Arguments in POST
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "124. Multiple @file Arguments in POST"
+$f1 = Join-Path $scriptDir "f1.txt"
+$f2 = Join-Path $scriptDir "f2.txt"
+"a=1" | Out-File -FilePath $f1 -Encoding ascii
+"b=2" | Out-File -FilePath $f2 -Encoding ascii
+try {
+    $result = Invoke-CurlTest "-s -d @`"$f1`" -d @`"$f2`" $baseUrl/post"
+    if ($result.Stdout -match "`"a`":\s?`"1`"" -and $result.Stdout -match "`"b`":\s?`"2`"") {
+        Write-Pass "Multiple @file arguments in POST worked."
+    } else {
+        Write-Fail "Multiple @file failed: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $f1) { Remove-Item $f1 }
+    if (Test-Path $f2) { Remove-Item $f2 }
+}
+
+# ----------------------------------------------------------------
+# Test 125: Multiple Files in One Form Field
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "125. Multiple Files in One Form Field"
+$img1 = Join-Path $scriptDir "img1.txt"
+$img2 = Join-Path $scriptDir "img2.txt"
+"content1" | Out-File -FilePath $img1 -Encoding ascii
+"content2" | Out-File -FilePath $img2 -Encoding ascii
+try {
+    # Using multiple -F flags with same name
+    $result = Invoke-CurlTest "-s -F `"images=@`"$img1`"`" -F `"images=@`"$img2`"`" $baseUrl/post-form-type"
+    # The server returns images as list or just the last one? 
+    # Let's check test_server.py post_form_type
+    if ($result.Stdout -match "content1" -and $result.Stdout -match "content2") {
+        Write-Pass "Multiple files in one form field (same name) worked."
+    } else {
+        Write-Fail "Multiple files in one field failed: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $img1) { Remove-Item $img1 }
+    if (Test-Path $img2) { Remove-Item $img2 }
+}
+
+# ----------------------------------------------------------------
+# Test 126: Exit 3: Malformed URL
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "126. Exit 3: Malformed URL"
+$result = Invoke-CurlTest "`"http://[invalid-url]`""
+if ($result.ExitCode -eq 3) {
+    Write-Pass "Correct ExitCode 3 for malformed URL."
+} else {
+    Write-Fail "Expected ExitCode 3, got $($result.ExitCode)."
+}
+
+# ----------------------------------------------------------------
+# Test 127: Exit 7: Failed to Connect
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "127.0.0.1:1"
+$result = Invoke-CurlTest "http://127.0.0.1:1"
+if ($result.ExitCode -eq 7) {
+    Write-Pass "Correct ExitCode 7 for connection refused."
+} else {
+    Write-Fail "Expected ExitCode 7, got $($result.ExitCode)."
+}
+
+# ----------------------------------------------------------------
+# Test 128: Environment Variable CURL_CA_BUNDLE
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "128. Environment Variable CURL_CA_BUNDLE"
+$oldCaBundle = $env:CURL_CA_BUNDLE
+try {
+    $env:CURL_CA_BUNDLE = "nonexistent.pem"
+    # This should fail because the CA bundle doesn't exist
+    $result = Invoke-CurlTest "-s https://127.0.0.1:8443/get"
+    # curl exit 77: Problem with the SSL CA cert (path? permission?)
+    # curl exit 60: Peer certificate cannot be authenticated with known CA certificates
+    if ($result.ExitCode -eq 77 -or $result.ExitCode -eq 60) {
+        Write-Pass "Correct failure (ExitCode $($result.ExitCode)) with invalid CURL_CA_BUNDLE."
+    } else {
+        Write-Fail "Expected ExitCode 77 or 60, got $($result.ExitCode). Stderr: $($result.Stderr)"
+    }
+} finally {
+    $env:CURL_CA_BUNDLE = $oldCaBundle
+}
+
+# ----------------------------------------------------------------
+# Test 129: Resuming Already Complete Download
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "129. Resuming Already Complete Download"
+$resumeFile = Join-Path $scriptDir "resume129.txt"
+# Create a file that is already 10 bytes long (the size of /range/10)
+"abcdefghij" | Out-File -FilePath $resumeFile -NoNewline -Encoding ascii
+try {
+    $result = Invoke-CurlTest "-s -C - -o `"$resumeFile`" $baseUrl/range/10"
+    if ($result.ExitCode -eq 0) {
+        $content = Get-Content $resumeFile -Raw
+        if ($content -eq "abcdefghij") {
+            Write-Pass "Resuming already complete download didn't change the file."
+        } else {
+            Write-Fail "File content changed: $content"
+        }
+    } else {
+        Write-Fail "Resume failed with ExitCode $($result.ExitCode): $($result.Stderr)"
+    }
+} finally {
+    if (Test-Path $resumeFile) { Remove-Item $resumeFile }
+}
+
+# ----------------------------------------------------------------
 # Stop the local server and print summary
 # ----------------------------------------------------------------
 if (-not $serverProcess.HasExited) { $serverProcess.Kill() }

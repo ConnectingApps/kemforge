@@ -120,8 +120,19 @@ def generate_cert(cert_path, key_path):
 # Routes
 # ---------------------------------------------------------------------------
 
-@app.route("/get", methods=["GET", "HEAD"])
+@app.route("/get", methods=["GET", "HEAD", "OPTIONS", "TRACE"])
 def get_endpoint():
+    if request.method == "OPTIONS":
+        resp = make_response("", 204)
+        resp.headers["Allow"] = "GET, POST, OPTIONS, HEAD, PUT, DELETE, PATCH, TRACE"
+        return resp
+    
+    if request.method == "TRACE":
+        # TRACE echoes the request
+        headers = "\n".join(f"{k}: {v}" for k, v in request.headers.items())
+        body = f"TRACE {request.path} HTTP/1.1\n{headers}\n\n"
+        return Response(body, mimetype="message/http")
+
     if_modified_since = request.headers.get("If-Modified-Since")
     if if_modified_since:
         # For simulation, just return 304 if any date is provided
@@ -396,14 +407,29 @@ def cookies_path_sub():
 @app.route("/post-form-type", methods=["POST"])
 def post_form_type():
     files_info = {}
-    for name, file in request.files.items():
-        files_info[name] = {
-            "filename": file.filename,
-            "content_type": file.content_type,
-            "data": file.read().decode('utf-8', errors='ignore')
-        }
+    for name in request.files.keys():
+        file_list = request.files.getlist(name)
+        if len(file_list) > 1:
+            files_info[name] = [{
+                "filename": f.filename,
+                "content_type": f.content_type,
+                "data": f.read().decode('utf-8', errors='ignore')
+            } for f in file_list]
+        else:
+            file = file_list[0]
+            files_info[name] = {
+                "filename": file.filename,
+                "content_type": file.content_type,
+                "data": file.read().decode('utf-8', errors='ignore')
+            }
+    
+    form_info = {}
+    for key in request.form.keys():
+        val_list = request.form.getlist(key)
+        form_info[key] = val_list if len(val_list) > 1 else val_list[0]
+
     return jsonify({
-        "form": dict(request.form),
+        "form": form_info,
         "files": files_info
     })
 
