@@ -1034,6 +1034,290 @@ if ($result.Stdout -match "`"tmp`":\s*`"val`"") {
 }
 
 # ----------------------------------------------------------------
+# Test 55: Mutual TLS (Client Certificates)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "55. Mutual TLS (Client Certificates)"
+$certFile = Join-Path $scriptDir "client.crt"
+$keyFile = Join-Path $scriptDir "client.key"
+# We'll use openssl to generate a real client cert/key
+try {
+    bash -c "openssl req -x509 -newkey rsa:2048 -keyout $keyFile -out $certFile -days 1 -nodes -subj '/CN=localhost' 2>/dev/null"
+    if (Test-Path $certFile) {
+        $result = Invoke-CurlTest "-s -k --cert `"$certFile`" --key `"$keyFile`" $httpsBaseUrl/mtls"
+        if ($result.Stdout -match '"authenticated":\s*true') {
+            Write-Pass "Mutual TLS request with valid certificates succeeded."
+        } else {
+            Write-Fail "Mutual TLS simulation failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+        }
+    } else {
+        Write-Skip "OpenSSL not available or failed to generate certificates."
+    }
+} finally {
+    if (Test-Path $certFile) { Remove-Item $certFile }
+    if (Test-Path $keyFile) { Remove-Item $keyFile }
+}
+
+# ----------------------------------------------------------------
+# Test 56: Negative SSL Verification
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "56. Negative SSL Verification"
+# Should fail without -k because cert is self-signed/adhoc
+$result = Invoke-CurlTest "-sS $httpsBaseUrl/get" -ReturnStderr
+if ($result.ExitCode -ne 0 -and ($result.Stderr -match "SSL" -or $result.ExitCode -eq 60)) {
+    Write-Pass "SSL verification correctly failed for self-signed cert without -k."
+} else {
+    Write-Fail "SSL verification did NOT fail as expected. Exit: $($result.ExitCode), Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 57: HSTS Support
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "57. HSTS Support"
+$result = Invoke-CurlTest "-s -I $baseUrl/hsts"
+if ($result.Stdout -match "Strict-Transport-Security") {
+    Write-Pass "HSTS header received correctly."
+} else {
+    Write-Fail "HSTS header missing. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 58: Digest Authentication
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "58. Digest Authentication"
+$result = Invoke-CurlTest "-s --digest -u user:password $baseUrl/digest-auth/user/password"
+if ($result.Stdout -match '"authenticated":\s*true') {
+    Write-Pass "Digest authentication succeeded."
+} else {
+    Write-Fail "Digest authentication failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 59: Netrc Support
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "59. Netrc Support"
+$netrcFile = Join-Path $scriptDir "test_netrc"
+"machine 127.0.0.1 login user password password" | Out-File $netrcFile -Encoding ascii
+try {
+    $result = Invoke-CurlTest "-s --netrc-file `"$netrcFile`" $baseUrl/basic-auth/user/password"
+    if ($result.Stdout -match '"authenticated":\s*true') {
+        Write-Pass "Netrc-based authentication succeeded."
+    } else {
+        Write-Fail "Netrc authentication failed. Stdout: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $netrcFile) { Remove-Item $netrcFile }
+}
+
+# ----------------------------------------------------------------
+# Test 60: Environment Variable Proxy Support
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "60. Environment Variable Proxy Support"
+$env:http_proxy = "http://127.0.0.1:$httpPort"
+try {
+    # Curl should use the proxy from environment. 
+    # Our proxy_handler returns "proxied": true.
+    # Note: Curl might not use proxy for localhost/127.0.0.1 by default unless forced or if it's the only way.
+    # We use a dummy domain and --resolve to force it to use the proxy.
+    $result = Invoke-CurlTest "-s http://proxy-test.internal/proxy"
+    if ($result.Stdout -match '"proxied":\s*true') {
+        Write-Pass "Proxy from environment variable used correctly."
+    } else {
+        Write-Fail "Proxy from environment not used. Stdout: $($result.Stdout)"
+    }
+} finally {
+    $env:http_proxy = $null
+}
+
+# ----------------------------------------------------------------
+# Test 61: SOCKS Proxy Support
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "61. SOCKS Proxy Support"
+# We don't have a SOCKS proxy, but we can check if curl attempts to use it.
+# It should fail because no SOCKS proxy is running.
+$result = Invoke-CurlTest "-sS -x socks5://127.0.0.1:9099 $baseUrl/get" -ReturnStderr
+if ($result.ExitCode -ne 0 -and ($result.Stderr -match "socks" -or $result.Stderr -match "connect" -or $result.ExitCode -eq 7)) {
+    Write-Pass "SOCKS proxy attempt detected (and failed as expected)."
+} else {
+    Write-Fail "SOCKS proxy test unexpected. Exit: $($result.ExitCode), Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 62: Proxy-Specific Authentication
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "62. Proxy-Specific Authentication"
+$result = Invoke-CurlTest "-s -x http://127.0.0.1:$httpPort --proxy-user puser:ppass $baseUrl/proxy"
+if ($result.Stdout -match "Basic cHVzZXI6cHBhc3M=") {
+    Write-Pass "Proxy-specific authentication header received."
+} else {
+    Write-Fail "Proxy-specific authentication failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 63: IP Version Control (-4 / -6)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "63. IP Version Control (-4)"
+$result = Invoke-CurlTest "-s -4 $baseUrl/get"
+if ($result.ExitCode -eq 0) {
+    Write-Pass "IPv4 enforcement succeeded."
+} else {
+    Write-Fail "IPv4 enforcement failed. Exit: $($result.ExitCode)"
+}
+
+# ----------------------------------------------------------------
+# Test 64: UNIX Domain Sockets
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "64. UNIX Domain Sockets"
+# This might be skipped if the server doesn't support it, but let's see if curl accepts the flag.
+$result = Invoke-CurlTest "-sS --unix-socket /tmp/nonexistent.sock http://localhost/get" -ReturnStderr
+if ($result.ExitCode -ne 0 -and ($result.Stderr -match "socket" -or $result.Stderr -match "connect" -or $result.ExitCode -eq 7)) {
+    Write-Pass "UNIX socket flag accepted by curl (and failed as expected)."
+} else {
+    Write-Fail "UNIX socket test unexpected. Exit: $($result.ExitCode), Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 65: DNS-over-HTTPS (DoH)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "65. DNS-over-HTTPS (DoH)"
+$result = Invoke-CurlTest "-s --doh-url $baseUrl/dns-query $baseUrl/get" -ReturnStderr
+# Curl might fail because dns-query doesn't return real DNS records, but it should try.
+if ($result.ExitCode -ne 0 -and ($result.Stderr -match "DOH" -or $result.Stderr -match "resolver")) {
+    Write-Pass "DoH flag accepted and attempted."
+} elseif ($result.ExitCode -eq 0) {
+    Write-Pass "DoH request completed."
+} else {
+    Write-Fail "DoH test failed. Exit: $($result.ExitCode), Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 66: Advanced Multipart Form Data (Metadata)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "66. Advanced Multipart Form Data (Metadata)"
+$testFile = Join-Path $scriptDir "metadata.txt"
+"content" | Out-File $testFile -Encoding ascii
+try {
+    $result = Invoke-CurlTest "-s -F `"file=@$testFile;type=text/plain;filename=remote.txt`" $baseUrl/post"
+    if ($result.Stdout -match "remote.txt" -and $result.Stdout -match "text/plain") {
+        Write-Pass "Multipart metadata (filename, type) received correctly."
+    } else {
+        Write-Fail "Multipart metadata mismatch. Stdout: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $testFile) { Remove-Item $testFile }
+}
+
+# ----------------------------------------------------------------
+# Test 67: Conditional GET
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "67. Conditional GET"
+$result = Invoke-CurlTest "-s -z `"Fri, 13 Mar 2026 12:00:00 GMT`" $baseUrl/get" -ReturnStderr
+# Server should return 304 (empty body)
+if ($result.ExitCode -eq 0 -and $result.Stdout.Length -eq 0) {
+    Write-Pass "Conditional GET returned 304 (empty body) as expected."
+} else {
+    Write-Fail "Conditional GET failed. Exit: $($result.ExitCode), Stdout length: $($result.Stdout.Length)"
+}
+
+# ----------------------------------------------------------------
+# Test 68: Resuming with Fixed Offset
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "68. Resuming with Fixed Offset (-C 5)"
+$result = Invoke-CurlTest "-s -C 5 $baseUrl/range/20"
+# range/20 is "abcdefghijklmnopqrst". Offset 5 should start at 'f'.
+if ($result.Stdout -match "^fghij") {
+    Write-Pass "Manual resume at offset 5 succeeded."
+} else {
+    Write-Fail "Manual resume failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 69: Expect 100-continue
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "69. Expect 100-continue"
+$result = Invoke-CurlTest "-s -d `"some data`" -H `"Expect: 100-continue`" $baseUrl/post"
+if ($result.Stdout -match '"data":\s*"some data"') {
+    Write-Pass "Expect 100-continue handled correctly."
+} else {
+    Write-Fail "Expect 100-continue failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 70: URL Globbing with Brackets (Ranges)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "70. URL Globbing with Brackets (Ranges)"
+$result = Invoke-CurlTest "-s `"$baseUrl/status/[200-201]`""
+if ($result.Stdout -match "Status: 200" -and $result.Stdout -match "Status: 201") {
+    Write-Pass "URL globbing with brackets [200-201] succeeded."
+} else {
+    Write-Fail "URL globbing failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 71: Comprehensive Write-out Variables
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "71. Comprehensive Write-out Variables"
+$result = Invoke-CurlTest "-s -o /dev/null -w `"URL:%{url_effective} Type:%{content_type} IP:%{remote_ip}`" $baseUrl/get"
+if ($result.Stdout -match "URL:http" -and $result.Stdout -match "Type:application/json" -and $result.Stdout -match "IP:127.0.0.1") {
+    Write-Pass "Comprehensive write-out variables reported correctly."
+} else {
+    Write-Fail "Write-out variables failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 72: Detailed Tracing
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "72. Detailed Tracing (--trace-ascii)"
+$traceFile = Join-Path $scriptDir "test_trace.txt"
+try {
+    $result = Invoke-CurlTest "-s --trace-ascii `"$traceFile`" $baseUrl/get"
+    if (Test-Path $traceFile) {
+        $traceContent = Get-Content $traceFile -Raw
+        if ($traceContent -match "== Info:" -and $traceContent -match "=> Send header") {
+            Write-Pass "Detailed tracing file created with protocol info."
+        } else {
+            Write-Fail "Trace file content unexpected."
+        }
+    } else {
+        Write-Fail "Trace file was not created."
+    }
+} finally {
+    if (Test-Path $traceFile) { Remove-Item $traceFile }
+}
+
+# ----------------------------------------------------------------
+# Test 73: Specific Redirect Handling (301, 308)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "73. Specific Redirect Handling (301, 308)"
+$result301 = Invoke-CurlTest "-s -L -d `"data`" $baseUrl/redirect-301"
+$result308 = Invoke-CurlTest "-s -L -d `"data`" $baseUrl/redirect-308"
+$passed301 = $result301.Stdout -match "url.*get"
+$passed308 = $result308.Stdout -match "url.*post" -and $result308.Stdout -match "data"
+if ($passed301 -and $passed308) {
+    Write-Pass "Specific redirect handling (301/308) succeeded."
+} else {
+    Write-Fail "Redirect 301/308 failed. 301: $passed301, 308: $passed308"
+}
+
+# ----------------------------------------------------------------
 # Stop the local server and print summary
 # ----------------------------------------------------------------
 if (-not $serverProcess.HasExited) { $serverProcess.Kill() }

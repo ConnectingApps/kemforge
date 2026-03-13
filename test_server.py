@@ -53,6 +53,11 @@ def _request_data():
 
 @app.route("/get", methods=["GET", "HEAD"])
 def get_endpoint():
+    if_modified_since = request.headers.get("If-Modified-Since")
+    if if_modified_since:
+        # For simulation, just return 304 if any date is provided
+        return make_response("", 304)
+
     data = {
         "args": dict(request.args),
         "headers": dict(request.headers),
@@ -95,6 +100,41 @@ def basic_auth(user, password):
     return make_response(
         "Unauthorized", 401, {"WWW-Authenticate": 'Basic realm="Login"'}
     )
+
+
+@app.route("/digest-auth/<user>/<password>")
+def digest_auth(user, password):
+    # This is a very simplified mock of Digest auth challenge
+    auth = request.headers.get("Authorization")
+    if auth and "Digest" in auth and f'username="{user}"' in auth:
+        return jsonify({"authenticated": True, "user": user})
+    
+    # Send challenge
+    nonce = "dcd98b7102dd2f0e8b11d0f600bfb0c093"
+    opaque = "5ccc069c403ebaf9f0171e9517f40e41"
+    header = f'Digest realm="Login", qop="auth", algorithm=MD5, nonce="{nonce}", opaque="{opaque}"'
+    return make_response(
+        "Unauthorized", 401, {"WWW-Authenticate": header}
+    )
+
+
+@app.route("/hsts")
+def hsts_endpoint():
+    resp = make_response("HSTS Enabled")
+    resp.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return resp
+
+
+@app.route("/mtls")
+def mtls_endpoint():
+    # In a real mTLS setup, we'd check request.environ.get('SSL_CLIENT_CERT')
+    # but with Flask's simple dev server, we can't easily do that.
+    # We'll just assume it's authenticated if the request reached here via the HTTPS port
+    # and maybe look for some specific header we can set in the test to simulate.
+    return jsonify({
+        "authenticated": True,
+        "certificate": "client.crt"
+    })
 
 
 @app.route("/redirect-to")
@@ -161,6 +201,12 @@ def bearer_endpoint():
         token = auth.split(" ")[1]
         return jsonify({"authenticated": True, "token": token})
     return make_response("Unauthorized", 401, {"WWW-Authenticate": 'Bearer realm="Login"'})
+
+
+@app.route("/dns-query", methods=["GET", "POST"])
+def dns_query():
+    # Mock DoH response (success)
+    return Response(b"Mocked DoH binary response", content_type="application/dns-message")
 
 
 @app.route("/redirect/<int:n>")

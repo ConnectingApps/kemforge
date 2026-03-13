@@ -893,3 +893,248 @@ curl -s -b "" httpbin.org/cookies/set/tmp/val httpbin.org/cookies
   }
 }
 ```
+
+---
+
+## 55. Mutual TLS (Client Certificates)
+**Description**: Presents a client-side certificate for authentication using the `--cert` and `--key` flags.
+**Input**:
+```bash
+curl -s --cert client.crt --key client.key -k https://127.0.0.1:8443/mtls
+```
+**Output**:
+```json
+{
+  "authenticated": true,
+  "certificate": "client.crt"
+}
+```
+
+---
+
+## 56. Negative SSL Verification
+**Description**: Verifies that `curl` fails to connect to a server with an invalid or self-signed certificate *unless* the `-k` (or `--insecure`) flag is provided.
+**Input**:
+```bash
+curl -s https://127.0.0.1:8443/get
+```
+**Output**:
+```text
+curl: (60) SSL certificate problem: self-signed certificate
+```
+
+---
+
+## 57. HSTS Support
+**Description**: Respects the `Strict-Transport-Security` header, which informs the client that all subsequent requests to the domain should be made via HTTPS.
+**Input**:
+```bash
+# First request to fetch the HSTS header
+curl -s -I http://127.0.0.1:8080/hsts
+# Subsequent requests to the same domain (even via HTTP) are upgraded automatically by curl
+```
+**Output**:
+```text
+HTTP/1.1 200 OK
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+```
+
+---
+
+## 58. Digest Authentication
+**Description**: Supports Digest Authentication, a more secure challenge-response mechanism than Basic Auth, using the `--digest` flag.
+**Input**:
+```bash
+curl -s --digest -u user:password http://127.0.0.1:8080/digest-auth/user/password
+```
+**Output**:
+```json
+{
+  "authenticated": true,
+  "user": "user"
+}
+```
+
+---
+
+## 59. Netrc Support
+**Description**: Automatically reads user credentials from a `.netrc` file (or specified file) using the `-n` (or `--netrc`) flag.
+**Input**:
+```bash
+# Assuming .netrc contains: machine 127.0.0.1 login user password password
+curl -s -n http://127.0.0.1:8080/basic-auth/user/password
+```
+**Output**:
+```json
+{
+  "authenticated": true,
+  "user": "user"
+}
+```
+
+---
+
+## 60. Environment Variable Proxy Support
+**Description**: Respects standard environment variables like `http_proxy`, `https_proxy`, and `no_proxy` for routing requests.
+**Input**:
+```bash
+export http_proxy=http://proxy.example.com:8080
+curl -s http://127.0.0.1:8080/get
+```
+**Output**:
+(The request is routed through the proxy defined in the environment.)
+
+---
+
+## 61. SOCKS Proxy Support
+**Description**: Routes requests through SOCKS4 or SOCKS5 proxies using the `-x` flag.
+**Input**:
+```bash
+curl -s -x socks5://localhost:9050 http://127.0.0.1:8080/get
+```
+**Output**:
+(The request is routed through the SOCKS5 proxy.)
+
+---
+
+## 62. Proxy-Specific Authentication
+**Description**: Provides credentials specifically for the proxy server using the `--proxy-user` flag, independent of the target server's authentication.
+**Input**:
+```bash
+curl -s -x http://proxy:8080 --proxy-user puser:ppass http://127.0.0.1:8080/get
+```
+**Output**:
+(Request is sent to the proxy with `Proxy-Authorization` header.)
+
+---
+
+## 63. IP Version Control (-4 / -6)
+**Description**: Forces `curl` to use IPv4 or IPv6 specifically for address resolution and connection using the `-4` or `-6` flags.
+**Input**:
+```bash
+curl -s -4 http://localhost:8080/get
+```
+**Output**:
+(The connection is forced over IPv4.)
+
+---
+
+## 64. UNIX Domain Sockets
+**Description**: Connects to a server via a UNIX domain socket instead of a network port using the `--unix-socket` flag.
+**Input**:
+```bash
+curl -s --unix-socket /tmp/test.sock http://localhost/get
+```
+**Output**:
+(The request is sent through the specified UNIX socket.)
+
+---
+
+## 65. DNS-over-HTTPS (DoH)
+**Description**: Uses a custom DoH resolver for DNS lookups instead of the system default using the `--doh-url` flag.
+**Input**:
+```bash
+curl -s --doh-url https://cloudflare-dns.com/dns-query http://example.com/get
+```
+**Output**:
+(DNS lookup is performed via DoH before connecting to the server.)
+
+---
+
+## 66. Advanced Multipart Form Data (Metadata)
+**Description**: Sends multiple multipart form fields with custom metadata like `type` and `filename` using the `-F` flag.
+**Input**:
+```bash
+curl -s -F "file=@test.txt;type=text/plain;filename=remote.txt" http://127.0.0.1:8080/post
+```
+**Output**:
+```json
+{
+  "files": {
+    "file": {
+      "filename": "remote.txt",
+      "type": "text/plain",
+      "content": "..."
+    }
+  }
+}
+```
+
+---
+
+## 67. Conditional GET
+**Description**: Fetches a resource only if it has been modified after a specific time or if the ETag has changed, using the `-z` (or `--time-cond`) flag.
+**Input**:
+```bash
+curl -s -z "Fri, 13 Mar 2026 12:00:00 GMT" http://127.0.0.1:8080/get
+```
+**Output**:
+(Server returns `304 Not Modified` if the resource hasn't changed.)
+
+---
+
+## 68. Resuming with Fixed Offset
+**Description**: Resumes a transfer starting from a manually specified byte offset using the `-C <offset>` flag.
+**Input**:
+```bash
+curl -s -C 100 http://127.0.0.1:8080/range/1024
+```
+**Output**:
+(The response starts from byte 100 of the requested resource.)
+
+---
+
+## 69. Expect 100-continue
+**Description**: Verifies how the tool handles the `Expect: 100-continue` header, which is common in large POST requests.
+**Input**:
+```bash
+curl -s -d "large data..." -H "Expect: 100-continue" http://127.0.0.1:8080/post
+```
+**Output**:
+(Server responds with `100 Continue` before the client sends the data.)
+
+---
+
+## 70. URL Globbing with Brackets (Ranges)
+**Description**: Fetches multiple resources using numeric or alphabetical ranges in the URL.
+**Input**:
+```bash
+curl -s "http://127.0.0.1:8080/status/[200-201]"
+```
+**Output**:
+(Requests for /status/200 and /status/201 are made.)
+
+---
+
+## 71. Comprehensive Write-out Variables
+**Description**: Uses a wider set of variables with the `-w` flag to extract detailed request/response timing and metadata.
+**Input**:
+```bash
+curl -s -o /dev/null -w "DNS: %{time_namelookup}, Connect: %{time_connect}, Size: %{size_download}, URL: %{url_effective}\n" http://127.0.0.1:8080/get
+```
+**Output**:
+```text
+DNS: 0.001, Connect: 0.002, Size: 253, URL: http://127.0.0.1:8080/get
+```
+
+---
+
+## 72. Detailed Tracing
+**Description**: Provides low-level protocol tracing for debugging using the `--trace` or `--trace-ascii` flags.
+**Input**:
+```bash
+curl -s --trace-ascii trace.txt http://127.0.0.1:8080/get
+```
+**Output**:
+(The file `trace.txt` contains the ASCII representation of the complete protocol exchange.)
+
+---
+
+## 73. Specific Redirect Handling (301, 308)
+**Description**: Specifically tests permanent redirects (301 and 308) to ensure correct method preservation or conversion.
+**Input**:
+```bash
+curl -s -L -d "data" http://127.0.0.1:8080/redirect-308
+```
+**Output**:
+(The 308 redirect preserves the POST method and data in the subsequent request.)
