@@ -763,6 +763,161 @@ if ($result.Stdout -match "url.*$httpPort/get") {
 }
 
 # ----------------------------------------------------------------
+# Test 37: Additional HTTP Methods (PUT and PATCH)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "37. Additional HTTP Methods (PUT and PATCH)"
+$resultPut = Invoke-CurlTest "-s -X PUT -d `"update=true`" $baseUrl/put"
+$resultPatch = Invoke-CurlTest "-s -X PATCH -d `"patch=true`" $baseUrl/patch"
+if ($resultPut.Stdout -match "update.*true" -and $resultPatch.Stdout -match "patch.*true") {
+    Write-Pass "PUT and PATCH methods succeeded."
+} else {
+    Write-Fail "PUT or PATCH failed. PUT Stdout: $($resultPut.Stdout), PATCH Stdout: $($resultPatch.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 38: Failed Authentication (Negative Testing)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "38. Failed Authentication (Negative Testing)"
+$result = Invoke-CurlTest "-s -u user:wrongpassword $baseUrl/basic-auth/user/password"
+if ($result.ExitCode -eq 0 -and $result.Stdout -match "Unauthorized") {
+    Write-Pass "Failed authentication correctly returned Unauthorized."
+} elseif ($result.ExitCode -eq 22) {
+    # If -f was used, curl would exit with 22, but here we didn't use -f
+    Write-Pass "Failed authentication correctly handled (ExitCode 22)."
+} else {
+    Write-Fail "Failed authentication test failed. ExitCode: $($result.ExitCode), Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 39: Dumping Headers to a File (--dump-header)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "39. Dumping Headers to a File (--dump-header)"
+$headerFile = Join-Path $scriptDir "test_headers.txt"
+if (Test-Path $headerFile) { Remove-Item $headerFile }
+try {
+    $result = Invoke-CurlTest "-s --dump-header `"$headerFile`" $baseUrl/get"
+    if (Test-Path $headerFile) {
+        $headers = Get-Content $headerFile -Raw
+        if ($headers -match "HTTP/1.1 200 OK" -and $headers -match "Content-Type: application/json") {
+            Write-Pass "Headers correctly dumped to file."
+        } else {
+            Write-Fail "Headers file content mismatch. Content: $headers"
+        }
+    } else {
+        Write-Fail "Headers file was not created."
+    }
+} finally {
+    if (Test-Path $headerFile) { Remove-Item $headerFile }
+}
+
+# ----------------------------------------------------------------
+# Test 40: Reading Data from Stdin (-d @-)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "40. Reading Data from Stdin (-d @-)"
+# PowerShell pipe to curl
+$cmd = "echo 'data-from-stdin' | $CurlCmd -s -d @- $baseUrl/post"
+$stdout = bash -c $cmd
+if ($stdout -match "data-from-stdin") {
+    Write-Pass "Data correctly read from stdin."
+} else {
+    Write-Fail "Stdin data test failed. Stdout: $stdout"
+}
+
+# ----------------------------------------------------------------
+# Test 41: Header Suppression/Removal (-H "Header:")
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "41. Header Suppression/Removal (-H `"Header:`")"
+$result = Invoke-CurlTest "-s -H `"User-Agent:`" $baseUrl/headers"
+# Flask might still show it as empty or missing
+if (-not ($result.Stdout -match "curl/") -or $result.Stdout -match "`"User-Agent`":\s*`"`"") {
+    Write-Pass "Header suppression/removal succeeded."
+} else {
+    Write-Fail "Header suppression failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 42: Enforcing HTTP Versions (--http1.1)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "42. Enforcing HTTP Versions (--http1.1)"
+$result = Invoke-CurlTest "-s -v --http1.1 $baseUrl/get"
+if ($result.Stderr -match "GET /get HTTP/1.1") {
+    Write-Pass "Enforcing HTTP/1.1 succeeded."
+} else {
+    Write-Fail "HTTP/1.1 enforcement failed or not visible in verbose output. Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 43: Resuming Downloads (-C -)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "43. Resuming Downloads (-C -)"
+$partialFile = Join-Path $scriptDir "partial.txt"
+"abcd" | Out-File $partialFile -NoNewline -Encoding ascii
+try {
+    # Requesting range starting from 4 (after "abcd")
+    $result = Invoke-CurlTest "-s -C - -o `"$partialFile`" $baseUrl/range/10"
+    $content = Get-Content $partialFile -Raw
+    # range/10 should return "abcdefghij". We already have "abcd", so it should append "efghij"
+    if ($content -eq "abcdefghij") {
+        Write-Pass "Download resumption succeeded."
+    } else {
+        Write-Fail "Download resumption failed. Content: $content"
+    }
+} finally {
+    if (Test-Path $partialFile) { Remove-Item $partialFile }
+}
+
+# ----------------------------------------------------------------
+# Test 44: Expanded Write-out Variables (-w)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "44. Expanded Write-out Variables (-w)"
+$result = Invoke-CurlTest "-s -o /dev/null -w `"Code:%{http_code} Size:%{size_download} Time:%{time_total}`" $baseUrl/get"
+if ($result.Stdout -match "Code:200" -and $result.Stdout -match "Size:\d+" -and $result.Stdout -match "Time:[\d\.]+") {
+    Write-Pass "Expanded write-out variables correctly reported."
+} else {
+    Write-Fail "Write-out variables failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 45: Uploading Files via PUT (-T)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "45. Uploading Files via PUT (-T)"
+$uploadFile = Join-Path $scriptDir "upload.txt"
+"binary data to upload" | Out-File $uploadFile -Encoding ascii
+try {
+    $result = Invoke-CurlTest "-s -T `"$uploadFile`" $baseUrl/put"
+    if ($result.Stdout -match "binary data to upload") {
+        Write-Pass "File upload via PUT succeeded."
+    } else {
+        Write-Fail "File upload via PUT failed. Stdout: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $uploadFile) { Remove-Item $uploadFile }
+}
+
+# ----------------------------------------------------------------
+# Test 46: URL Globbing
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "46. URL Globbing"
+# Use braces {} for specific values in a set. Escape with backtick if needed in PS, 
+# but inside a double-quoted string they should be fine.
+$result = Invoke-CurlTest "-s `"$baseUrl/status/{200,201}`""
+if ($result.Stdout -match "Status: 200" -and $result.Stdout -match "Status: 201") {
+    Write-Pass "URL globbing succeeded."
+} else {
+    Write-Fail "URL globbing failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
 # Stop the local server and print summary
 # ----------------------------------------------------------------
 if (-not $serverProcess.HasExited) { $serverProcess.Kill() }

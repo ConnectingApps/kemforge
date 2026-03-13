@@ -72,6 +72,16 @@ def post_endpoint():
     return jsonify(_request_data())
 
 
+@app.route("/put", methods=["PUT"])
+def put_endpoint():
+    return jsonify(_request_data())
+
+
+@app.route("/patch", methods=["PATCH"])
+def patch_endpoint():
+    return jsonify(_request_data())
+
+
 @app.route("/basic-auth/<user>/<password>")
 def basic_auth(user, password):
     auth = request.authorization

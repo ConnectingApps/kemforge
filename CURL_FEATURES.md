@@ -661,3 +661,116 @@ curl -s --resolve example.com:80:127.0.0.1 http://example.com/get
 ```
 **Output**:
 (The response from the local server at 127.0.0.1, even though the URL uses example.com.)
+
+---
+
+## 37. Additional HTTP Methods (PUT and PATCH)
+**Description**: Uses PUT and PATCH methods for requests using the `-X` flag.
+**Input**:
+```bash
+curl -s -X PUT -d '{"update": "true"}' httpbin.org/put
+curl -s -X PATCH -d '{"patch": "true"}' httpbin.org/patch
+```
+**Output**:
+(The JSON response reflecting the method used and the data sent.)
+
+---
+
+## 38. Failed Authentication (Negative Testing)
+**Description**: Verifies that incorrect credentials result in an unauthorized error (401).
+**Input**:
+```bash
+curl -s -u user:wrongpassword httpbin.org/basic-auth/user/password
+```
+**Output**:
+(Unauthorized message or 401 status code depending on flags.)
+
+---
+
+## 39. Dumping Headers to a File
+**Description**: Saves only the response headers to a specified file using the `--dump-header` flag.
+**Input**:
+```bash
+curl -s --dump-header headers.txt httpbin.org/get
+```
+**Output**:
+(No terminal output. The file `headers.txt` is created with the response headers.)
+
+---
+
+## 40. Reading Data from Stdin
+**Description**: Reads data from standard input to send in a POST request using the `-d @-` flag.
+**Input**:
+```bash
+echo "data" | curl -s -d @- httpbin.org/post
+```
+**Output**:
+(The JSON response reflecting the data sent via stdin.)
+
+---
+
+## 41. Header Suppression/Removal
+**Description**: Removes a default header or sends an empty header by providing no value after the colon, using the `-H` flag.
+**Input**:
+```bash
+curl -s -H "User-Agent:" httpbin.org/headers
+```
+**Output**:
+(The JSON response showing the headers without the `User-Agent`.)
+
+---
+
+## 42. Enforcing HTTP Versions
+**Description**: Forces the use of a specific HTTP version (e.g., HTTP/1.1) using the `--http1.1` flag.
+**Input**:
+```bash
+curl -s --http1.1 httpbin.org/get
+```
+**Output**:
+(The response delivered via the specified HTTP version.)
+
+---
+
+## 43. Resuming Downloads
+**Description**: Continues a previously interrupted transfer from a specific offset using the `-C -` flag with `-o`.
+**Input**:
+```bash
+curl -s -C - -o partial_file.txt httpbin.org/range/1024
+```
+**Output**:
+(The remaining part of the file is appended to `partial_file.txt`.)
+
+---
+
+## 44. Expanded Write-out Variables
+**Description**: Extracts multiple pieces of information about the request/response using more detailed variables in the `-w` flag.
+**Input**:
+```bash
+curl -s -o /dev/null -w "Status: %{http_code}, Size: %{size_download}, Total Time: %{time_total}s\n" httpbin.org/get
+```
+**Output**:
+```text
+Status: 200, Size: 253, Total Time: 0.045s
+```
+
+---
+
+## 45. Uploading Files via PUT
+**Description**: Performs a binary file upload using the PUT method with the `-T` flag.
+**Input**:
+```bash
+curl -s -T testfile.txt httpbin.org/put
+```
+**Output**:
+(The JSON response reflecting the file upload.)
+
+---
+
+## 46. URL Globbing
+**Description**: Fetches multiple resources by specifying a range or set of values in the URL using braces.
+**Input**:
+```bash
+curl -s "httpbin.org/status/{200,404}"
+```
+**Output**:
+(The responses for each of the specified status codes.)
