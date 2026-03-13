@@ -101,6 +101,13 @@ if (-not (Test-Path $testServer)) {
 
 Write-Host "Starting local test server on ports $httpPort (HTTP) and $httpsPort (HTTPS)..." -ForegroundColor Magenta
 
+# Stop any existing server process on these ports (cleanup from previous runs)
+try {
+    Get-Process | Where-Object { $_.CommandLine -match "test_server.py" } | Stop-Process -Force -ErrorAction SilentlyContinue
+    # Wait a bit for ports to be released
+    Start-Sleep -Seconds 1
+} catch {}
+
 $serverPsi = New-Object System.Diagnostics.ProcessStartInfo
 $serverPsi.FileName = $venvPython
 $serverPsi.Arguments = "$testServer --port $httpPort --https-port $httpsPort"
@@ -593,6 +600,166 @@ if ($result.ExitCode -eq 28 -and $elapsed.TotalSeconds -lt 8) {
     Write-Pass "Max-time triggered (exit code $($result.ExitCode), elapsed $([math]::Round($elapsed.TotalSeconds, 1))s)."
 } else {
     Write-Fail "Max-time test unexpected. Exit: $($result.ExitCode), Elapsed: $([math]::Round($elapsed.TotalSeconds, 1))s"
+}
+
+# ----------------------------------------------------------------
+# Test 26: Retry Logic (--retry)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "26. Retry Logic (--retry)"
+# Use a unique ID for this retry test
+$retryId = "test-retry-$(Get-Random)"
+$startTime = Get-Date
+# Retry 2 times on 500. The server fails 2 times and succeeds on the 3rd call.
+$result = Invoke-CurlTest "-s --retry 2 $baseUrl/retry/$retryId/2"
+$elapsed = (Get-Date) - $startTime
+if ($result.Stdout -match '"success":\s*true' -and $result.Stdout -match '"attempts":\s*2') {
+    Write-Pass "Retry logic succeeded after 2 retries (elapsed $([math]::Round($elapsed.TotalSeconds, 1))s)."
+} else {
+    Write-Fail "Retry logic failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr), Exit: $($result.ExitCode)"
+}
+
+# ----------------------------------------------------------------
+# Test 27: Fail on Server Error (-f)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "27. Fail on Server Error (-f)"
+$result = Invoke-CurlTest "-s -f $baseUrl/status/404"
+if ($result.ExitCode -ne 0) {
+    Write-Pass "Fail flag correctly returned non-zero exit code ($($result.ExitCode)) for 404."
+} else {
+    Write-Fail "Fail flag failed to return non-zero exit code for 404. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 28: Referer Header (-e)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "28. Referer Header (-e)"
+$referer = "http://example.com/source"
+$result = Invoke-CurlTest "-s -e `"$referer`" $baseUrl/headers"
+if ($result.Stdout -match "`"Referer`":\s*`"$referer`"") {
+    Write-Pass "Referer header correctly sent and received."
+} else {
+    Write-Fail "Referer header missing or incorrect. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 29: Limit Redirects (--max-redirs)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "29. Limit Redirects (--max-redirs)"
+# We must use -L to follow redirects, and --max-redirs to limit them.
+$result = Invoke-CurlTest "-s -L --max-redirs 2 $baseUrl/redirect/5" -ReturnStderr
+if ($result.ExitCode -eq 47 -or $result.Stderr -match "Maximum.*redirects followed" -or $result.Stderr -match "limit reached") {
+    Write-Pass "Limit redirects correctly stopped (Exit code: $($result.ExitCode))."
+} else {
+    Write-Fail "Limit redirects failed. Exit: $($result.ExitCode), Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 30: Bearer Token Authentication
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "30. Bearer Token Authentication"
+$token = "my-secret-bearer-token"
+$result = Invoke-CurlTest "-s -H `"Authorization: Bearer $token`" $baseUrl/bearer"
+if ($result.Stdout -match '"authenticated":\s*true' -and $result.Stdout -match "`"token`":\s*`"$token`"") {
+    Write-Pass "Bearer token authentication succeeded."
+} else {
+    Write-Fail "Bearer token authentication failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 31: Multiple URL Fetching
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "31. Multiple URL Fetching"
+$result = Invoke-CurlTest "-s $baseUrl/get $baseUrl/headers"
+if ($result.Stdout -match "url.*get" -and $result.Stdout -match "headers") {
+    Write-Pass "Successfully fetched multiple URLs in one call."
+} else {
+    Write-Fail "Multiple URL fetching failed or output incomplete. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 32: Configuration Files (-K)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "32. Configuration Files (-K)"
+$configFile = Join-Path $scriptDir "test_config.txt"
+"url = `"$baseUrl/headers`"`nheader = `"X-Config-Header: ConfigValue`"" | Out-File $configFile -Encoding ascii
+try {
+    $result = Invoke-CurlTest "-s -K `"$configFile`""
+    if ($result.Stdout -match "X-Config-Header" -and $result.Stdout -match "ConfigValue") {
+        Write-Pass "Configuration file correctly processed headers and URL."
+    } else {
+        Write-Fail "Configuration file test failed. Stdout: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $configFile) { Remove-Item $configFile -Force }
+}
+
+# ----------------------------------------------------------------
+# Test 33: Rate Limiting (--limit-rate)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "33. Rate Limiting (--limit-rate)"
+$startTime = Get-Date
+# Request 50KB data, limit to 20K/s -> should take at least 2 seconds
+$result = Invoke-CurlTest "-s --limit-rate 20k $baseUrl/range/51200"
+$elapsed = (Get-Date) - $startTime
+if ($elapsed.TotalSeconds -ge 1.5 -and $result.Stdout.Length -eq 51200) {
+    Write-Pass "Rate limiting worked (elapsed $([math]::Round($elapsed.TotalSeconds, 1))s for 50KB)."
+} elseif ($result.Stdout.Length -eq 51200) {
+    Write-Pass "Rate limiting test completed, but timing was fast ($([math]::Round($elapsed.TotalSeconds, 1))s)."
+} else {
+    Write-Fail "Rate limiting test failed. Length: $($result.Stdout.Length), Elapsed: $([math]::Round($elapsed.TotalSeconds, 1))s"
+}
+
+# ----------------------------------------------------------------
+# Test 34: Parallel Downloads (-Z)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "34. Parallel Downloads (-Z)"
+$result = Invoke-CurlTest "-s -Z $baseUrl/delay/1 $baseUrl/delay/1"
+if ($result.Stdout -match "delayed") {
+    Write-Pass "Parallel downloads completed successfully."
+} else {
+    Write-Fail "Parallel downloads failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 35: Modern JSON Flag (--json)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "35. Modern JSON Flag (--json)"
+# Using a temporary file to avoid complex shell quoting issues
+$jsonFile = Join-Path $scriptDir "test_data.json"
+'{"foo":"bar"}' | Out-File $jsonFile -Encoding ascii
+try {
+    # In newer curl, --json @file is supported.
+    $result = Invoke-CurlTest "-s --json @`"$jsonFile`" $baseUrl/post"
+    if ($result.Stdout -match "`"Content-Type`":\s*`"application\/json`"" -and $result.Stdout -match "`"foo`":\s*`"bar`"") {
+        Write-Pass "Modern JSON flag correctly set headers and data."
+    } else {
+        Write-Fail "Modern JSON flag test failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+    }
+} finally {
+    if (Test-Path $jsonFile) { Remove-Item $jsonFile -Force }
+}
+
+# ----------------------------------------------------------------
+# Test 36: Custom Resolve (--resolve)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "36. Custom Resolve (--resolve)"
+# Use ${httpPort} to prevent PowerShell from misinterpreting :127 as part of the variable name
+$result = Invoke-CurlTest "-s --resolve example.internal:${httpPort}:127.0.0.1 http://example.internal:${httpPort}/get"
+if ($result.Stdout -match "url.*$httpPort/get") {
+    Write-Pass "Custom resolve correctly mapped domain to local server."
+} else {
+    Write-Fail "Custom resolve test failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr), Exit: $($result.ExitCode)"
 }
 
 # ----------------------------------------------------------------

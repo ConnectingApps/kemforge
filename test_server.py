@@ -24,6 +24,12 @@ app = Flask(__name__)
 
 
 # ---------------------------------------------------------------------------
+# State for retry test
+# ---------------------------------------------------------------------------
+retry_counts = {}
+
+
+# ---------------------------------------------------------------------------
 # Utility
 # ---------------------------------------------------------------------------
 
@@ -126,6 +132,37 @@ def range_endpoint(n):
 def delay_endpoint(n):
     time.sleep(n)
     return jsonify({"delayed": n})
+
+
+@app.route("/status/<int:code>")
+def status_endpoint(code):
+    return make_response(f"Status: {code}", code)
+
+
+@app.route("/bearer")
+def bearer_endpoint():
+    auth = request.headers.get("Authorization")
+    if auth and auth.startswith("Bearer "):
+        token = auth.split(" ")[1]
+        return jsonify({"authenticated": True, "token": token})
+    return make_response("Unauthorized", 401, {"WWW-Authenticate": 'Bearer realm="Login"'})
+
+
+@app.route("/redirect/<int:n>")
+def redirect_n(n):
+    if n > 1:
+        return redirect(f"/redirect/{n-1}")
+    return redirect("/get")
+
+
+@app.route("/retry/<string:id>/<int:n>")
+def retry_endpoint(id, n):
+    """Fails n times with 500 for a given id before returning 200."""
+    count = retry_counts.get(id, 0)
+    if count < n:
+        retry_counts[id] = count + 1
+        return make_response(f"Retry attempt {count + 1}/{n} - Failing with 500", 500)
+    return jsonify({"success": True, "attempts": count})
 
 
 # ---------------------------------------------------------------------------

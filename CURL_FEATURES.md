@@ -502,3 +502,162 @@ curl -s --max-time 2 httpbin.org/delay/5
 ```
 **Output**:
 (No output or error message depending on flags, but curl will exit with code 28 after 2 seconds.)
+
+---
+
+## 26. Retry Logic
+**Description**: Retries the request if it fails with a transient error (e.g., 5xx status codes or connection drops) using the `--retry` flag.
+**Input**:
+```bash
+# Retries 3 times if the server returns a 500 error.
+curl -s --retry 3 httpbin.org/status/500
+```
+**Output**:
+(The response from the server after the last retry, or an error if all retries fail.)
+
+---
+
+## 27. Fail on Server Error
+**Description**: Returns a non-zero exit code if the server returns an HTTP error code (4xx or 5xx), using the `-f` (or `--fail`) flag.
+**Input**:
+```bash
+curl -s -f httpbin.org/status/404
+```
+**Output**:
+(No output, but curl will exit with code 22.)
+
+---
+
+## 28. Referer Header
+**Description**: Sends the `Referer` header with the request using the `-e` (or `--referer`) flag.
+**Input**:
+```bash
+curl -s -e "http://example.com" httpbin.org/headers
+```
+**Output**:
+```json
+{
+  "headers": {
+    "Accept": "*/*",
+    "Host": "httpbin.org",
+    "Referer": "http://example.com",
+    "User-Agent": "curl/8.5.0"
+  }
+}
+```
+
+---
+
+## 29. Limit Redirects
+**Description**: Limits the maximum number of redirects to follow using the `--max-redirs` flag.
+**Input**:
+```bash
+curl -s -L --max-redirs 2 httpbin.org/redirect/3
+```
+**Output**:
+```text
+curl: (47) Maximum (2) redirects followed
+```
+
+---
+
+## 30. Bearer Token Authentication
+**Description**: Sends a Bearer token in the `Authorization` header.
+**Input**:
+```bash
+curl -s -H "Authorization: Bearer my-secret-token" httpbin.org/bearer
+```
+**Output**:
+```json
+{
+  "authenticated": true,
+  "token": "my-secret-token"
+}
+```
+
+---
+
+## 31. Multiple URL Fetching
+**Description**: Fetches multiple URLs in a single command.
+**Input**:
+```bash
+curl -s httpbin.org/get httpbin.org/headers
+```
+**Output**:
+(The concatenated output of both requests.)
+
+---
+
+## 32. Configuration Files
+**Description**: Reads command-line arguments from a configuration file using the `-K` (or `--config`) flag.
+**Input**:
+```bash
+# Assuming config.txt contains:
+# url = "httpbin.org/get"
+# header = "X-My-Header: CustomValue"
+curl -s -K config.txt
+```
+**Output**:
+(The response from httpbin.org/get, including the custom header.)
+
+---
+
+## 33. Rate Limiting
+**Description**: Limits the maximum transfer rate using the `--limit-rate` flag.
+**Input**:
+```bash
+curl -s --limit-rate 10k httpbin.org/range/102400
+```
+**Output**:
+(The 100KB file downloaded at a rate of 10KB/s, taking approximately 10 seconds.)
+
+---
+
+## 34. Parallel Downloads
+**Description**: Downloads multiple URLs in parallel using the `-Z` (or `--parallel`) flag.
+**Input**:
+```bash
+curl -s -Z httpbin.org/get httpbin.org/headers
+```
+**Output**:
+(The responses from both URLs.)
+
+---
+
+## 35. Modern JSON Flag
+**Description**: Sends a JSON request using the `--json` flag, which automatically sets `Content-Type` and `Accept` to `application/json`.
+**Input**:
+```bash
+curl -s --json '{"foo": "bar"}' httpbin.org/post
+```
+**Output**:
+```json
+{
+  "args": {},
+  "data": "{\"foo\": \"bar\"}",
+  "files": {},
+  "form": {},
+  "headers": {
+    "Accept": "application/json",
+    "Content-Type": "application/json",
+    "Host": "httpbin.org",
+    "User-Agent": "curl/8.5.0"
+  },
+  "json": {
+    "foo": "bar"
+  },
+  "origin": "94.215.21.151",
+  "url": "http://httpbin.org/post"
+}
+```
+
+---
+
+## 36. Custom Resolve
+**Description**: Overrides host resolution for a specific domain and port with a custom IP address using the `--resolve` flag.
+**Input**:
+```bash
+curl -s --resolve example.com:80:127.0.0.1 http://example.com/get
+```
+**Output**:
+(The response from the local server at 127.0.0.1, even though the URL uses example.com.)
