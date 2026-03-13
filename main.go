@@ -17,62 +17,61 @@ func main() {
 		os.Exit(1)
 	}
 
-	opts := ParseArgs(args)
+	allOpts := ParseArgs(args)
 
-	if opts.ShowHelp {
-		fmt.Println("Usage: kemforge [options] <url>")
-		fmt.Println("Options:")
-		fmt.Println("  -o <file>          Write output to <file>")
-		fmt.Println("  -H <header>        Pass custom header(s) to server")
-		fmt.Println("  -d <data>          HTTP POST data")
-		fmt.Println("  --data-raw <data>  HTTP POST data (no @ support)")
-		fmt.Println("  -v                 Make the operation more talkative")
-		fmt.Println("  -i                 Include protocol response headers in the output")
-		fmt.Println("  -L                 Follow redirects")
-		fmt.Println("  -k                 Allow insecure server connections when using SSL")
-		fmt.Println("  -s                 Silent mode")
-		fmt.Println("  --help             This help text")
-		fmt.Println("  --version          Show version number and exit")
-		os.Exit(0)
-	}
+	for _, opts := range allOpts {
+		if opts.ShowHelp {
+			fmt.Println("Usage: kemforge [options] <url>")
+			fmt.Println("Options:")
+			fmt.Println("  -o <file>          Write output to <file>")
+			fmt.Println("  -H <header>        Pass custom header(s) to server")
+			fmt.Println("  -d <data>          HTTP POST data")
+			fmt.Println("  --data-raw <data>  HTTP POST data (no @ support)")
+			fmt.Println("  -v                 Make the operation more talkative")
+			fmt.Println("  -i                 Include protocol response headers in the output")
+			fmt.Println("  -L                 Follow redirects")
+			fmt.Println("  -k                 Allow insecure server connections when using SSL")
+			fmt.Println("  -s                 Silent mode")
+			fmt.Println("  --help             This help text")
+			fmt.Println("  --version          Show version number and exit")
+			continue
+		}
 
-	if opts.ShowVersion {
-		fmt.Println("kemforge (curl-compatible) version 1.0.0")
-		os.Exit(0)
-	}
+		if opts.ShowVersion {
+			fmt.Println("kemforge (curl-compatible) version 1.0.0")
+			continue
+		}
 
-	client, jar := BuildClient(opts)
+		client, jar := BuildClient(opts)
 
-	if opts.Parallel {
-		var wg sync.WaitGroup
-		for i, targetURL := range opts.TargetURLs {
-			i, targetURL := i, targetURL
-			wg.Go(func() {
-				// Each request might have its own output file if multiple -o were specified
+		if opts.Parallel {
+			var wg sync.WaitGroup
+			for i, targetURL := range opts.TargetURLs {
+				i, targetURL := i, targetURL
+				wg.Go(func() {
+					// Each request might have its own output file if multiple -o were specified
+					currentOpts := opts
+					if i < len(opts.OutputFiles) {
+						currentOpts.OutputFile = opts.OutputFiles[i]
+					} else if len(opts.OutputFiles) > 0 {
+						if i >= len(opts.OutputFiles) {
+							currentOpts.OutputFile = ""
+						}
+					}
+					executeRequest(currentOpts, client, jar, targetURL)
+				})
+			}
+			wg.Wait()
+		} else {
+			for i, targetURL := range opts.TargetURLs {
 				currentOpts := opts
 				if i < len(opts.OutputFiles) {
 					currentOpts.OutputFile = opts.OutputFiles[i]
 				} else if len(opts.OutputFiles) > 0 {
-					// If multiple -o were provided but not enough for all URLs,
-					// curl behavior varies, but we'll use the last one or stdout?
-					// Actually curl -o f1 -o f2 url1 url2 url3 -> url1 to f1, url2 to f2, url3 to stdout.
-					if i >= len(opts.OutputFiles) {
-						currentOpts.OutputFile = ""
-					}
+					currentOpts.OutputFile = ""
 				}
 				executeRequest(currentOpts, client, jar, targetURL)
-			})
-		}
-		wg.Wait()
-	} else {
-		for i, targetURL := range opts.TargetURLs {
-			currentOpts := opts
-			if i < len(opts.OutputFiles) {
-				currentOpts.OutputFile = opts.OutputFiles[i]
-			} else if len(opts.OutputFiles) > 0 {
-				currentOpts.OutputFile = ""
 			}
-			executeRequest(currentOpts, client, jar, targetURL)
 		}
 	}
 }

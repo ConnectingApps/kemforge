@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -60,39 +61,62 @@ func WriteResponse(resp *http.Response, req *http.Request, opts Options, startTi
 
 	// Determine output writer
 	var output io.Writer = os.Stdout
+	var outPath string
+
+	if opts.RemoteOut {
+		remoteName := path.Base(req.URL.Path)
+		if opts.RemoteHeaderName {
+			if cd := resp.Header.Get("Content-Disposition"); cd != "" {
+				if parts := strings.Split(cd, "filename="); len(parts) > 1 {
+					remoteName = strings.Trim(strings.TrimSpace(parts[1]), "\"")
+				}
+			}
+		}
+		if remoteName == "" || remoteName == "/" || remoteName == "." {
+			remoteName = "index.html"
+		}
+		outPath = remoteName
+	}
+
 	if opts.OutputFile != "" {
-		if opts.OutputFile == "/dev/null" || opts.OutputFile == "NUL" {
+		outPath = opts.OutputFile
+	}
+
+	if outPath != "" {
+		if outPath == "/dev/null" || outPath == "NUL" {
 			output = io.Discard
 		} else {
+			if opts.OutputDir != "" {
+				outPath = filepath.Join(opts.OutputDir, outPath)
+			}
+
+			if opts.CreateDirs {
+				_ = os.MkdirAll(filepath.Dir(outPath), 0755)
+			}
+
 			flags := os.O_CREATE | os.O_WRONLY
 			if opts.AutoResume || opts.ResumeOffset > 0 {
 				flags |= os.O_APPEND
 			} else {
 				flags |= os.O_TRUNC
 			}
-			f, err := os.OpenFile(opts.OutputFile, flags, 0644)
+			f, err := os.OpenFile(outPath, flags, 0644)
 			if err != nil {
-				_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't open '%s': %v\n", opts.OutputFile, err)
+				_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't open '%s': %v\n", outPath, err)
 				os.Exit(1)
 			}
-			defer func() { _ = f.Close() }()
+			defer func() {
+				_ = f.Close()
+				if opts.RemoteTime {
+					if lm := resp.Header.Get("Last-Modified"); lm != "" {
+						if t, err := http.ParseTime(lm); err == nil {
+							_ = os.Chtimes(outPath, t, t)
+						}
+					}
+				}
+			}()
 			output = f
 		}
-	}
-
-	// Remote filename output -O
-	if opts.RemoteOut {
-		remoteName := path.Base(req.URL.Path)
-		if remoteName == "" || remoteName == "/" || remoteName == "." {
-			remoteName = "index.html"
-		}
-		f, err := os.Create(remoteName)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "kemforge: can't create '%s': %v\n", remoteName, err)
-			os.Exit(1)
-		}
-		defer func() { _ = f.Close() }()
-		output = f
 	}
 
 	// Head request or -I: print headers
@@ -139,8 +163,32 @@ func WriteResponse(resp *http.Response, req *http.Request, opts Options, startTi
 			bodyReader = &rateLimitedReader{r: bodyReader, bytesPerSec: opts.LimitRate}
 		}
 
-		n, _ := io.Copy(output, bodyReader)
+		if opts.SpeedLimit > 0 && opts.SpeedTime > 0 {
+			bodyReader = &speedLimitedReader{r: bodyReader, limit: opts.SpeedLimit, time: opts.SpeedTime}
+		}
+
+		var n int64
+		var err error
+		if opts.MaxFileSize > 0 {
+			cw := &countingWriter{w: output, limit: opts.MaxFileSize}
+			n, err = io.Copy(cw, bodyReader)
+			if (err == nil || err == io.EOF) && cw.count >= opts.MaxFileSize {
+				// Check if there was more to read
+				var buf [1]byte
+				if nr, _ := bodyReader.Read(buf[:]); nr > 0 {
+					os.Exit(63)
+				}
+			}
+		} else {
+			n, err = io.Copy(output, bodyReader)
+		}
 		sizeDownload = n
+
+		if err != nil {
+			if err.Error() == "speed limit exceeded" {
+				os.Exit(28)
+			}
+		}
 	}
 
 	// Write-out format
@@ -188,19 +236,57 @@ type rateLimitedReader struct {
 }
 
 func (l *rateLimitedReader) Read(p []byte) (int, error) {
-	// Small buffer for better precision
-	chunkSize := len(p)
-	if int64(chunkSize) > l.bytesPerSec/10 {
-		chunkSize = int(l.bytesPerSec / 10)
-		if chunkSize < 1 {
-			chunkSize = 1
-		}
-	}
-
-	n, err := l.r.Read(p[:chunkSize])
+	n, err := l.r.Read(p)
 	if n > 0 {
 		sleepDuration := time.Duration(n) * time.Second / time.Duration(l.bytesPerSec)
 		time.Sleep(sleepDuration)
+	}
+	return n, err
+}
+
+type countingWriter struct {
+	w     io.Writer
+	limit int64
+	count int64
+}
+
+func (cw *countingWriter) Write(p []byte) (int, error) {
+	if cw.count >= cw.limit {
+		return 0, io.EOF
+	}
+	remaining := cw.limit - cw.count
+	toWrite := int64(len(p))
+	if toWrite > remaining {
+		toWrite = remaining
+	}
+	n, err := cw.w.Write(p[:toWrite])
+	cw.count += int64(n)
+	if err == nil && int64(n) < int64(len(p)) {
+		return n, io.EOF
+	}
+	return n, err
+}
+
+type speedLimitedReader struct {
+	r     io.Reader
+	limit int64
+	time  float64
+	start time.Time
+	read  int64
+}
+
+func (l *speedLimitedReader) Read(p []byte) (int, error) {
+	if l.start.IsZero() {
+		l.start = time.Now()
+	}
+	n, err := l.r.Read(p)
+	l.read += int64(n)
+	elapsed := time.Since(l.start).Seconds()
+	if elapsed >= l.time {
+		speed := float64(l.read) / elapsed
+		if speed < float64(l.limit) {
+			return n, fmt.Errorf("speed limit exceeded")
+		}
 	}
 	return n, err
 }

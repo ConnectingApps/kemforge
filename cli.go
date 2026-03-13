@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -67,10 +68,28 @@ type Options struct {
 	ProxyUser     string // --proxy-user user:pass
 	ShowHelp      bool   // --help
 	ShowVersion   bool   // --version
+
+	// New fields
+	CreateDirs       bool
+	OutputDir        string
+	RemoteHeaderName bool
+	RemoteTime       bool
+	Post301          bool
+	Post302          bool
+	Post303          bool
+	LocationTrusted  bool
+	Interface        string
+	FormStringArgs   []string
+	MaxFileSize      int64
+	SpeedLimit       int64
+	SpeedTime        float64
+	CACert           string
+	PinnedPubKey     string
 }
 
 // ParseArgs parses command-line arguments into an Options struct.
-func ParseArgs(args []string) Options {
+func ParseArgs(args []string) []Options {
+	var allOpts []Options
 	opts := Options{
 		UserAgent: "kemforge/1.0",
 	}
@@ -78,6 +97,12 @@ func ParseArgs(args []string) Options {
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
+		case a == "--next":
+			allOpts = append(allOpts, opts)
+			// Reset for next
+			opts = Options{
+				UserAgent: "kemforge/1.0",
+			}
 		case a == "-s":
 			opts.Silent = true
 		case a == "-S":
@@ -97,6 +122,60 @@ func ParseArgs(args []string) Options {
 			i++
 			if i < len(args) {
 				_, _ = fmt.Sscanf(args[i], "%d", &opts.MaxRedirs)
+			}
+		case a == "--create-dirs":
+			opts.CreateDirs = true
+		case a == "--output-dir":
+			i++
+			if i < len(args) {
+				opts.OutputDir = args[i]
+			}
+		case a == "-J" || a == "--remote-header-name":
+			opts.RemoteHeaderName = true
+		case a == "-R" || a == "--remote-time":
+			opts.RemoteTime = true
+		case a == "--post301":
+			opts.Post301 = true
+		case a == "--post302":
+			opts.Post302 = true
+		case a == "--post303":
+			opts.Post303 = true
+		case a == "--location-trusted":
+			opts.LocationTrusted = true
+		case a == "--interface":
+			i++
+			if i < len(args) {
+				opts.Interface = args[i]
+			}
+		case a == "--form-string":
+			i++
+			if i < len(args) {
+				opts.FormStringArgs = append(opts.FormStringArgs, args[i])
+			}
+		case a == "--max-filesize":
+			i++
+			if i < len(args) {
+				opts.MaxFileSize = parseRate(args[i])
+			}
+		case a == "--speed-limit":
+			i++
+			if i < len(args) {
+				opts.SpeedLimit = parseRate(args[i])
+			}
+		case a == "--speed-time":
+			i++
+			if i < len(args) {
+				_, _ = fmt.Sscanf(args[i], "%f", &opts.SpeedTime)
+			}
+		case a == "--cacert":
+			i++
+			if i < len(args) {
+				opts.CACert = args[i]
+			}
+		case a == "--pinnedpubkey":
+			i++
+			if i < len(args) {
+				opts.PinnedPubKey = args[i]
 			}
 		case a == "--dump-header":
 			i++
@@ -239,7 +318,7 @@ func ParseArgs(args []string) Options {
 		case a == "-K" || a == "--config":
 			i++
 			if i < len(args) {
-				opts.ConfigPath = args[i]
+				parseConfigFile(&opts, args[i])
 			}
 		case a == "-x":
 			i++
@@ -312,20 +391,33 @@ func ParseArgs(args []string) Options {
 		}
 	}
 
-	if opts.ConfigPath != "" {
-		parseConfigFile(&opts)
+	allOpts = append(allOpts, opts)
+
+	// If no URLs found in any of the segments, and not showing help/version
+	hasURLs := false
+	for _, o := range allOpts {
+		if len(o.TargetURLs) > 0 || o.ShowHelp || o.ShowVersion {
+			hasURLs = true
+			break
+		}
 	}
 
-	if len(opts.TargetURLs) == 0 && !opts.ShowHelp && !opts.ShowVersion {
+	if !hasURLs {
 		_, _ = fmt.Fprintf(os.Stderr, "kemforge: no URL specified\n")
 		os.Exit(1)
 	}
 
-	return opts
+	return allOpts
 }
 
-func parseConfigFile(opts *Options) {
-	data, err := os.ReadFile(opts.ConfigPath)
+func parseConfigFile(opts *Options, configPath string) {
+	var data []byte
+	var err error
+	if configPath == "-" {
+		data, err = io.ReadAll(os.Stdin)
+	} else {
+		data, err = os.ReadFile(configPath)
+	}
 	if err != nil {
 		return
 	}

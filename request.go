@@ -5,6 +5,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
 	"path"
@@ -44,7 +45,7 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	if method == "" {
 		if opts.HeadReq {
 			method = "HEAD"
-		} else if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.DataRaw) > 0 || len(opts.FormArgs) > 0 || opts.JSONData != "" {
+		} else if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.DataRaw) > 0 || len(opts.FormArgs) > 0 || len(opts.FormStringArgs) > 0 || opts.JSONData != "" {
 			method = "POST"
 		} else if opts.UploadFile != "" {
 			method = "PUT"
@@ -191,17 +192,41 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 		return strings.NewReader(data), "application/json"
 	}
 
-	if len(opts.FormArgs) > 0 {
+	if len(opts.FormArgs) > 0 || len(opts.FormStringArgs) > 0 {
 		// Multipart form
 		var buf strings.Builder
 		w := multipart.NewWriter(&buf)
+
+		allFormArgs := []struct {
+			val      string
+			isString bool
+		}{}
 		for _, f := range opts.FormArgs {
-			parts := strings.SplitN(f, "=", 2)
+			allFormArgs = append(allFormArgs, struct {
+				val      string
+				isString bool
+			}{f, false})
+		}
+		for _, f := range opts.FormStringArgs {
+			allFormArgs = append(allFormArgs, struct {
+				val      string
+				isString bool
+			}{f, true})
+		}
+
+		for _, f := range allFormArgs {
+			parts := strings.SplitN(f.val, "=", 2)
 			if len(parts) != 2 {
 				continue
 			}
 			name := parts[0]
 			val := parts[1]
+
+			if f.isString {
+				pw, _ := w.CreateFormField(name)
+				_, _ = pw.Write([]byte(val))
+				continue
+			}
 
 			// Handle metadata like ;type=...;filename=...
 			subParts := strings.Split(val, ";")
@@ -234,14 +259,20 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 				}
 				h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, name, remoteName))
 				h.Set("Content-Type", contentType)
-				pw, _ := w.CreatePart(map[string][]string(h))
+				pw, _ := w.CreatePart(textproto.MIMEHeader(h))
 				_, _ = pw.Write(data)
 			} else {
-				if contentType != "" {
+				if contentType != "" || remoteName != "" {
 					h := make(http.Header)
-					h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"`, name))
-					h.Set("Content-Type", contentType)
-					pw, _ := w.CreatePart(map[string][]string(h))
+					disposition := fmt.Sprintf(`form-data; name="%s"`, name)
+					if remoteName != "" {
+						disposition += fmt.Sprintf(`; filename="%s"`, remoteName)
+					}
+					h.Set("Content-Disposition", disposition)
+					if contentType != "" {
+						h.Set("Content-Type", contentType)
+					}
+					pw, _ := w.CreatePart(textproto.MIMEHeader(h))
 					_, _ = pw.Write([]byte(mainVal))
 				} else {
 					pw, _ := w.CreateFormField(name)

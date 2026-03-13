@@ -59,6 +59,10 @@ def generate_cert(cert_path, key_path):
     cert.gmtime_adj_notBefore(0)
     cert.gmtime_adj_notAfter(10*365*24*60*60)
     cert.set_issuer(cert.get_subject())
+    # Add SANs
+    cert.add_extensions([
+        crypto.X509Extension(b"subjectAltName", False, b"IP:127.0.0.1, DNS:localhost")
+    ])
     cert.set_pubkey(k)
     cert.sign(k, 'sha256')
     with open(cert_path, "wb") as f:

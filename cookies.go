@@ -39,6 +39,10 @@ func (j *simpleCookieJar) Cookies(u *url.URL) []*http.Cookie {
 		if !c.Expires.IsZero() && c.Expires.Before(now) {
 			continue
 		}
+		// Check path scoping
+		if c.Path != "" && !strings.HasPrefix(u.Path, c.Path) {
+			continue
+		}
 		result = append(result, c)
 	}
 	return result
@@ -72,7 +76,7 @@ func loadCookiesIntoJar(jar *simpleCookieJar, filename string, reqURL *url.URL) 
 			c := &http.Cookie{
 				Name:  fields[5],
 				Value: fields[6],
-				Path:  fields[1],
+				Path:  fields[2],
 			}
 			expires, _ := strconv.ParseInt(fields[4], 10, 64)
 			if expires > 0 {
