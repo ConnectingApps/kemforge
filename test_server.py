@@ -14,12 +14,14 @@ Also provides a forward-proxy endpoint on the HTTP port.
 
 import argparse
 import json
+import os
 import string
 import ssl
 import threading
 import time
 import socket
 from flask import Flask, request, jsonify, redirect, make_response, Response
+from OpenSSL import crypto
 
 app = Flask(__name__)
 
@@ -39,13 +41,30 @@ def _request_data():
     return {
         "args": dict(request.args),
         "data": request.get_data(as_text=True),
-        "files": {k: v.read().decode() for k, v in request.files.items()},
+        "files": {k: v.read().decode('utf-8', errors='ignore') for k, v in request.files.items()},
         "form": dict(request.form),
         "headers": dict(request.headers),
         "json": request.get_json(silent=True),
         "origin": request.remote_addr,
         "url": request.url,
     }
+
+
+def generate_cert(cert_path, key_path):
+    k = crypto.PKey()
+    k.generate_key(crypto.TYPE_RSA, 2048)
+    cert = crypto.X509()
+    cert.get_subject().CN = "127.0.0.1"
+    cert.set_serial_number(1000)
+    cert.gmtime_adj_notBefore(0)
+    cert.gmtime_adj_notAfter(10*365*24*60*60)
+    cert.set_issuer(cert.get_subject())
+    cert.set_pubkey(k)
+    cert.sign(k, 'sha256')
+    with open(cert_path, "wb") as f:
+        f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
+    with open(key_path, "wb") as f:
+        f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k))
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +316,79 @@ def decompressed_endpoint():
     return resp
 
 
+@app.route("/content-disposition")
+def content_disposition():
+    resp = make_response("This is a file content")
+    resp.headers["Content-Disposition"] = 'attachment; filename="remote-file.txt"'
+    return resp
+
+
+@app.route("/remote-time")
+def remote_time():
+    resp = make_response("Check my timestamp")
+    # Set Last-Modified to a fixed date
+    resp.headers["Last-Modified"] = "Wed, 21 Oct 2015 07:28:00 GMT"
+    return resp
+
+
+@app.route("/cookies/path")
+def cookies_path():
+    resp = make_response(jsonify({"message": "Setting path cookies"}))
+    resp.set_cookie("path_cookie_root", "root_val", path="/")
+    resp.set_cookie("path_cookie_sub", "sub_val", path="/cookies/path/sub")
+    return resp
+
+
+@app.route("/cookies/path/sub")
+def cookies_path_sub():
+    return jsonify({"cookies": dict(request.cookies)})
+
+
+@app.route("/post-form-type", methods=["POST"])
+def post_form_type():
+    files_info = {}
+    for name, file in request.files.items():
+        files_info[name] = {
+            "filename": file.filename,
+            "content_type": file.content_type,
+            "data": file.read().decode('utf-8', errors='ignore')
+        }
+    return jsonify({
+        "form": dict(request.form),
+        "files": files_info
+    })
+
+
+@app.route("/large-response")
+def large_response():
+    # Return 1MB of data
+    return "X" * (1024 * 1024)
+
+
+@app.route("/slow-response")
+def slow_response():
+    def generate():
+        for i in range(10):
+            yield f"part {i}\n"
+            time.sleep(0.5)
+    return Response(generate(), content_type='text/plain')
+
+
+@app.route("/redirect-301-post", methods=["GET", "POST"])
+def redirect_301_post():
+    return redirect("/post", code=301)
+
+
+@app.route("/redirect-302-post", methods=["GET", "POST"])
+def redirect_302_post():
+    return redirect("/post", code=302)
+
+
+@app.route("/redirect-303-post", methods=["GET", "POST"])
+def redirect_303_post():
+    return redirect("/post", code=303)
+
+
 # ---------------------------------------------------------------------------
 # Simple forward-proxy handler (Test 19)
 # ---------------------------------------------------------------------------
@@ -347,10 +439,10 @@ def proxy_handler():
 
 def run_connect_proxy(port):
     """A minimal TCP-level CONNECT proxy for tunneling."""
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        server.bind(("127.0.0.1", port))
+        server.bind(("::", port))
     except Exception as e:
         print(f"CONNECT proxy bind failed: {e}")
         return
@@ -389,8 +481,11 @@ def run_connect_proxy(port):
 
 def run_https(port):
     """Run a second Flask instance with a self-signed certificate."""
-    # Generate an ad-hoc SSL context (requires pyopenssl)
-    app.run(host="127.0.0.1", port=port, ssl_context="adhoc", use_reloader=False)
+    cert_path = "server.crt"
+    key_path = "server.key"
+    if not os.path.exists(cert_path) or not os.path.exists(key_path):
+        generate_cert(cert_path, key_path)
+    app.run(host="::", port=port, ssl_context=(cert_path, key_path), use_reloader=False)
 
 
 if __name__ == "__main__":
@@ -409,4 +504,4 @@ if __name__ == "__main__":
     proxy_thread.start()
 
     # Start HTTP server (foreground)
-    app.run(host="127.0.0.1", port=args.port, use_reloader=False)
+    app.run(host="::", port=args.port, use_reloader=False)

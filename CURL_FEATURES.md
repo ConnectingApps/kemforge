@@ -1354,3 +1354,258 @@ curl -s -b cookies.txt http://127.0.0.1:8080/cookies
 ```
 **Output**:
 (JSON response showing only non-expired cookies.)
+
+---
+
+### 93. Directory Management (`--create-dirs`)
+**Description**: Automatically creates the local directory structure specified in the `-o` path if it doesn't exist.
+**Input**:
+```bash
+curl -s --create-dirs -o nested/dir/file.txt http://127.0.0.1:8080/get
+```
+**Output**:
+(The directory `nested/dir/` is created, and the file `file.txt` is saved inside.)
+
+---
+
+### 94. Output Directory (`--output-dir`)
+**Description**: Specifies a base directory for all output files (useful with `-O`).
+**Input**:
+```bash
+mkdir my_downloads
+curl -s --output-dir my_downloads -O http://127.0.0.1:8080/get
+```
+**Output**:
+(The file `get` is saved in `my_downloads/get`.)
+
+---
+
+### 95. Remote Filename from Header (`-J`)
+**Description**: Uses the server-provided filename from the `Content-Disposition` header when combined with `-O`.
+**Input**:
+```bash
+curl -s -O -J http://127.0.0.1:8080/content-disposition
+```
+**Output**:
+(A file named `remote-file.txt` is created with the response content.)
+
+---
+
+### 96. Remote Time Synchronization (`-R`)
+**Description**: Synchronizes the local file's timestamp with the server's `Last-Modified` time.
+**Input**:
+```bash
+curl -s -R -o local_file.txt http://127.0.0.1:8080/remote-time
+```
+**Output**:
+(The local file `local_file.txt` has its modification time set to the date provided by the server.)
+
+---
+
+### 97. POST to GET conversion control (`--post301`)
+**Description**: Prevents `curl` from converting a POST request to GET when following a 301 redirect.
+**Input**:
+```bash
+curl -s -L --post301 -d "data=123" http://127.0.0.1:8080/redirect-301-post
+```
+**Output**:
+(The subsequent request is a POST to the new location.)
+
+---
+
+### 98. POST to GET conversion control (`--post302`)
+**Description**: Prevents `curl` from converting a POST request to GET when following a 302 redirect.
+**Input**:
+```bash
+curl -s -L --post302 -d "data=123" http://127.0.0.1:8080/redirect-302-post
+```
+**Output**:
+(The subsequent request is a POST to the new location.)
+
+---
+
+### 99. POST to GET conversion control (`--post303`)
+**Description**: Prevents `curl` from converting a POST request to GET when following a 303 redirect.
+**Input**:
+```bash
+curl -s -L --post303 -d "data=123" http://127.0.0.1:8080/redirect-303-post
+```
+**Output**:
+(The subsequent request is a POST to the new location.)
+
+---
+
+### 100. Location Trusted Credentials (`--location-trusted`)
+**Description**: Passes credentials (from `-u`) to redirected hosts even when the hostname changes.
+**Input**:
+```bash
+curl -s -L -u user:password --location-trusted http://127.0.0.1:8080/redirect-to?url=http://localhost:8080/basic-auth-check
+```
+**Output**:
+(The credentials are sent to the second host.)
+
+---
+
+### 101. Retry on Connection Refused (`--retry-connrefused`)
+**Description**: Retries the request even if the initial connection is refused by the server.
+**Input**:
+```bash
+curl -s --retry 1 --retry-connrefused http://127.0.0.1:59999
+```
+**Output**:
+(Curl attempts to connect, fails, and retries once.)
+
+---
+
+### 102. Retry on All Errors (`--retry-all-errors`)
+**Description**: Retries on any error, including 404s (which are normally not retried).
+**Input**:
+```bash
+curl -s --retry 1 --retry-all-errors http://127.0.0.1:8080/status/404
+```
+**Output**:
+(Curl retries once after receiving the 404.)
+
+---
+
+### 103. Abort on First Error (`--fail-early`)
+**Description**: Stops the entire operation on the first error when multiple URLs are provided.
+**Input**:
+```bash
+curl -s --fail-early http://127.0.0.1:1 http://127.0.0.1:8080/get
+```
+**Output**:
+(Curl exits immediately after the first URL fails and does not attempt the second.)
+
+---
+
+### 104. IPv6 Forcing (`-6`)
+**Description**: Forces address resolution and connectivity over IPv6.
+**Input**:
+```bash
+curl -s -6 http://[::1]:8080/get
+```
+**Output**:
+(Connection is established over IPv6.)
+
+---
+
+### 105. Interface Binding (`--interface`)
+**Description**: Binds the request to a specific network interface or IP address.
+**Input**:
+```bash
+curl -s --interface 127.0.0.1 http://127.0.0.1:8080/get
+```
+**Output**:
+(Connection is initiated from the specified interface/IP.)
+
+---
+
+### 106. Resetting Options for Next URL (`--next`)
+**Description**: Resets most options for the subsequent URL on the command line.
+**Input**:
+```bash
+curl -s http://127.0.0.1:8080/get --next -d "data=next" http://127.0.0.1:8080/post
+```
+**Output**:
+(First request is a GET, second is a POST with data.)
+
+---
+
+### 107. Multiple Config Files (`-K`)
+**Description**: Passes multiple configuration files to merge options.
+**Input**:
+```bash
+curl -s -K config1.txt -K config2.txt http://127.0.0.1:8080/headers
+```
+**Output**:
+(Options from both files are applied to the request.)
+
+---
+
+### 108. Config from Stdin (`-K -`)
+**Description**: Reads configuration parameters from standard input.
+**Input**:
+```bash
+echo 'user-agent = "MyAgent"' | curl -s -K - http://127.0.0.1:8080/get
+```
+**Output**:
+(Request is made using the User-Agent specified in the stdin config.)
+
+---
+
+### 109. Cookie Path Scoping
+**Description**: Ensures that cookies are only sent back to paths matching the `path` attribute.
+**Input**:
+```bash
+curl -s -c cookies.txt http://127.0.0.1:8080/cookies/path
+curl -s -b cookies.txt http://127.0.0.1:8080/cookies/path/sub
+```
+**Output**:
+(Only cookies matching the path are included in the second request.)
+
+---
+
+### 110. Literal Multipart Form String (`--form-string`)
+**Description**: Sends multipart form data that starts with `@` as a literal string.
+**Input**:
+```bash
+curl -s --form-string "field=@literal" http://127.0.0.1:8080/post-form-type
+```
+**Output**:
+(Field is sent as the string "@literal" instead of trying to read from a file named "literal".)
+
+---
+
+### 111. Content-Type per Form Field
+**Description**: Specifies a custom Content-Type for a multipart form field.
+**Input**:
+```bash
+curl -s -F "field={\"a\":1};type=application/json" http://127.0.0.1:8080/post-form-type
+```
+**Output**:
+(Field is sent with `Content-Type: application/json`.)
+
+---
+
+### 112. Maximum Filesize Limit (`--max-filesize`)
+**Description**: Aborts the transfer if the server's `Content-Length` exceeds a specified limit.
+**Input**:
+```bash
+curl -s --max-filesize 500000 http://127.0.0.1:8080/large-response
+```
+**Output**:
+(Curl exits with error code 63.)
+
+---
+
+### 113. Speed Limit and Time (`--speed-limit` and `--speed-time`)
+**Description**: Aborts transfers that fall below a certain speed for a specified duration.
+**Input**:
+```bash
+curl -s --speed-limit 1000 --speed-time 2 http://127.0.0.1:8080/slow-response
+```
+**Output**:
+(Curl exits with error code 28 after 2 seconds of slow transfer.)
+
+---
+
+### 114. CA Certificate Bundle (`--cacert`)
+**Description**: Provides a specific CA certificate bundle for peer verification.
+**Input**:
+```bash
+curl -s --cacert server.crt https://127.0.0.1:8443/get
+```
+**Output**:
+(Successful connection after verifying the server's certificate against the provided CA cert.)
+
+---
+
+### 115. Pinned Public Key Verification (`--pinnedpubkey`)
+**Description**: Verifies the server's public key against a provided hash or file.
+**Input**:
+```bash
+curl -s -k --pinnedpubkey server.crt https://127.0.0.1:8443/get
+```
+**Output**:
+(Successful connection if the server's public key matches the pinned key.)

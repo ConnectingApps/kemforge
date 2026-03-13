@@ -68,6 +68,7 @@ function Invoke-CurlTest {
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $CurlCmd
     $psi.Arguments = $Arguments
+    $psi.WorkingDirectory = $pwd.Path
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.RedirectStandardInput = $Stdin -ne $null
@@ -1623,6 +1624,349 @@ try {
     }
 } finally {
     if (Test-Path $cookieFile) { Remove-Item $cookieFile }
+}
+
+# ----------------------------------------------------------------
+# Test 93: --create-dirs
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "93. --create-dirs"
+$nestedDir = Join-Path $scriptDir "nested/dir/test"
+$nestedFile = Join-Path $nestedDir "file.txt"
+try {
+    $result = Invoke-CurlTest "-s --create-dirs -o `"$nestedFile`" $baseUrl/get"
+    if (Test-Path $nestedFile) {
+        Write-Pass "--create-dirs successfully created nested directories."
+    } else {
+        Write-Fail "Nested directory or file not created."
+    }
+} finally {
+    if (Test-Path (Join-Path $scriptDir "nested")) { Remove-Item -Recurse -Force (Join-Path $scriptDir "nested") }
+}
+
+# ----------------------------------------------------------------
+# Test 94: --output-dir
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "94. --output-dir"
+$outDir = Join-Path $scriptDir "output_dir_test"
+if (-not (Test-Path $outDir)) { New-Item -ItemType Directory $outDir | Out-Null }
+try {
+    $result = Invoke-CurlTest "-s --output-dir `"$outDir`" -O $baseUrl/get"
+    $expectedFile = Join-Path $outDir "get"
+    if (Test-Path $expectedFile) {
+        Write-Pass "--output-dir successfully saved file to specified directory."
+    } else {
+        Write-Fail "File not found in output directory."
+    }
+} finally {
+    if (Test-Path $outDir) { Remove-Item -Recurse -Force $outDir }
+}
+
+# ----------------------------------------------------------------
+# Test 95: -J / --remote-header-name
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "95. -J / --remote-header-name"
+try {
+    $tempDir = Join-Path $scriptDir "temp_j_test"
+    if (-not (Test-Path $tempDir)) { New-Item -ItemType Directory $tempDir | Out-Null }
+    $oldPwd = $pwd
+    Set-Location $tempDir
+    $result = Invoke-CurlTest "-s -O -J $baseUrl/content-disposition"
+    Set-Location $oldPwd
+    
+    $expectedFile = Join-Path $tempDir "remote-file.txt"
+    if (Test-Path $expectedFile) {
+        Write-Pass "-J / --remote-header-name used the filename from Content-Disposition."
+    } else {
+        Write-Fail "File with remote name not created."
+    }
+} finally {
+    if (Test-Path $tempDir) { Remove-Item -Recurse -Force $tempDir }
+}
+
+# ----------------------------------------------------------------
+# Test 96: -R / --remote-time
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "96. -R / --remote-time"
+$remoteFile = Join-Path $scriptDir "remote_time.txt"
+try {
+    $result = Invoke-CurlTest "-s -R -o `"$remoteFile`" $baseUrl/remote-time"
+    if (Test-Path $remoteFile) {
+        $lastWrite = (Get-Item $remoteFile).LastWriteTime.ToUniversalTime()
+        $expectedDate = [DateTime]::ParseExact("Wed, 21 Oct 2015 07:28:00 GMT", "ddd, dd MMM yyyy HH:mm:ss 'GMT'", [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeUniversal).ToUniversalTime()
+        if ([Math]::Abs(($lastWrite - $expectedDate).TotalSeconds) -lt 2) {
+            Write-Pass "-R / --remote-time synchronized local file timestamp."
+        } else {
+            Write-Fail "Timestamp mismatch. Got $lastWrite, expected $expectedDate"
+        }
+    } else {
+        Write-Fail "Remote file not created."
+    }
+} finally {
+    if (Test-Path $remoteFile) { Remove-Item $remoteFile }
+}
+
+# ----------------------------------------------------------------
+# Test 97: --post301
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "97. --post301"
+$result = Invoke-CurlTest "-s -L --post301 -d `"data=123`" $baseUrl/redirect-301-post"
+if ($result.Stdout -match "`"data`":\s?`"data=123`"") {
+    Write-Pass "--post301 preserved POST method after 301 redirect."
+} else {
+    Write-Fail "--post301 failed to preserve POST or redirect failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 98: --post302
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "98. --post302"
+$result = Invoke-CurlTest "-s -L --post302 -d `"data=123`" $baseUrl/redirect-302-post"
+if ($result.Stdout -match "`"data`":\s?`"data=123`"") {
+    Write-Pass "--post302 preserved POST method after 302 redirect."
+} else {
+    Write-Fail "--post302 failed to preserve POST or redirect failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 99: --post303
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "99. --post303"
+$result = Invoke-CurlTest "-s -L --post303 -d `"data=123`" $baseUrl/redirect-303-post"
+if ($result.Stdout -match "`"data`":\s?`"data=123`"") {
+    Write-Pass "--post303 preserved POST method after 303 redirect."
+} else {
+    Write-Fail "--post303 failed to preserve POST or redirect failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 100: --location-trusted
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "100. --location-trusted"
+$result = Invoke-CurlTest "-s -L -u user:password --location-trusted http://127.0.0.1:$httpPort/redirect-to?url=http://localhost:$httpPort/basic-auth-check"
+if ($result.Stdout -match "Basic dXNlcjpwYXNzd29yZA==") {
+    Write-Pass "--location-trusted passed credentials to redirected host."
+} else {
+    Write-Fail "--location-trusted failed to pass credentials: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 101: --retry-connrefused
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "101. --retry-connrefused"
+$closedPort = 59999
+$start = Get-Date
+$result = Invoke-CurlTest "-s --retry 1 --retry-connrefused --retry-delay 1 http://127.0.0.1:$closedPort"
+$end = Get-Date
+$duration = ($end - $start).TotalSeconds
+if ($duration -ge 1) {
+    Write-Pass "--retry-connrefused attempted retry on connection refused."
+} else {
+    Write-Fail "--retry-connrefused did not seem to retry (duration: $duration s)."
+}
+
+# ----------------------------------------------------------------
+# Test 102: --retry-all-errors
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "102. --retry-all-errors"
+$start = Get-Date
+$result = Invoke-CurlTest "-s -f --retry 1 --retry-all-errors --retry-delay 1 $baseUrl/status/404"
+$end = Get-Date
+$duration = ($end - $start).TotalSeconds
+if ($duration -ge 1) {
+    Write-Pass "--retry-all-errors attempted retry on 404."
+} else {
+    Write-Fail "--retry-all-errors did not retry on 404 (duration: $duration s)."
+}
+
+# ----------------------------------------------------------------
+# Test 103: --fail-early
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "103. --fail-early"
+$result = Invoke-CurlTest "-s --fail-early http://127.0.0.1:1 $baseUrl/get"
+if ($result.ExitCode -ne 0 -and $result.Stdout -notmatch "url") {
+    Write-Pass "--fail-early stopped after first failure."
+} else {
+    Write-Fail "--fail-early did not stop as expected. ExitCode: $($result.ExitCode), Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 104: IPv6 forcing (-6)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "104. IPv6 forcing (-6)"
+$result = Invoke-CurlTest "-s -6 http://[::1]:$httpPort/get"
+if ($result.ExitCode -eq 0) {
+    Write-Pass "-6 successfully forced IPv6."
+} else {
+    Write-Skip "-6 failed or IPv6 not available: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 105: --interface
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "105. --interface"
+$result = Invoke-CurlTest "-s --interface 127.0.0.1 $baseUrl/get"
+if ($result.ExitCode -eq 0) {
+    Write-Pass "--interface 127.0.0.1 worked."
+} else {
+    Write-Fail "--interface failed: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 106: --next
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "106. --next"
+$result = Invoke-CurlTest "-s $baseUrl/get --next -d `"data=next`" $baseUrl/post"
+if ($result.Stdout -match "get" -and $result.Stdout -match "data=next") {
+    Write-Pass "--next correctly reset options for subsequent URL."
+} else {
+    Write-Fail "--next failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 107: Multiple config files (-K)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "107. Multiple config files (-K)"
+$cfg1 = Join-Path $scriptDir "config1.txt"
+$cfg2 = Join-Path $scriptDir "config2.txt"
+try {
+    "user-agent = `"Agent1`"" | Out-File -FilePath $cfg1 -Encoding ascii
+    "header = `"X-Config: Value2`"" | Out-File -FilePath $cfg2 -Encoding ascii
+    $result = Invoke-CurlTest "-s -K `"$cfg1`" -K `"$cfg2`" $baseUrl/headers"
+    if ($result.Stdout -match "Agent1" -and $result.Stdout -match "Value2") {
+        Write-Pass "Multiple config files merged correctly."
+    } else {
+        Write-Fail "Config merge failed: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $cfg1) { Remove-Item $cfg1 }
+    if (Test-Path $cfg2) { Remove-Item $cfg2 }
+}
+
+# ----------------------------------------------------------------
+# Test 108: Reading config from stdin (-K -)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "108. Reading config from stdin (-K -)"
+$result = Invoke-CurlTest "-s -K - $baseUrl/get" -Stdin "user-agent = `"StdinAgent`""
+if ($result.Stdout -match "StdinAgent") {
+    Write-Pass "Successfully read config from stdin using -K -."
+} else {
+    Write-Fail "Config from stdin failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 109: Cookie Path Scoping
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "109. Cookie Path Scoping"
+$cookieFile = Join-Path $scriptDir "cookies_path.txt"
+try {
+    Invoke-CurlTest "-s -c `"$cookieFile`" $baseUrl/cookies/path" | Out-Null
+    $resSub = Invoke-CurlTest "-s -b `"$cookieFile`" $baseUrl/cookies/path/sub"
+    $resRoot = Invoke-CurlTest "-s -b `"$cookieFile`" $baseUrl/get"
+    if ($resSub.Stdout -match "path_cookie_root" -and $resSub.Stdout -match "path_cookie_sub" -and 
+        $resRoot.Stdout -match "path_cookie_root" -and $resRoot.Stdout -notmatch "path_cookie_sub") {
+        Write-Pass "Cookie path scoping respected."
+    } else {
+        Write-Fail "Cookie path scoping failed. Sub: $($resSub.Stdout), Root: $($resRoot.Stdout)"
+    }
+} finally {
+    if (Test-Path $cookieFile) { Remove-Item $cookieFile }
+}
+
+# ----------------------------------------------------------------
+# Test 110: --form-string
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "110. --form-string"
+$result = Invoke-CurlTest "-s --form-string `"field=@literal`" $baseUrl/post-form-type"
+if ($result.Stdout -match "`"field`":\s?`"@literal`"") {
+    Write-Pass "--form-string sent @ character literally in multipart form."
+} else {
+    Write-Fail "--form-string failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 111: Content-Type per form field
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "111. Content-Type per form field"
+$result = Invoke-CurlTest "-s -F `"field={`"a`":1};type=application/json;filename=test.json`" $baseUrl/post-form-type"
+if ($result.Stdout -match "`"content_type`":\s?`"application/json`"") {
+    Write-Pass "Successfully sent custom Content-Type for form field."
+} else {
+    Write-Fail "Custom Content-Type for form field failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 112: --max-filesize
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "112. --max-filesize"
+$result = Invoke-CurlTest "-s --max-filesize 500000 $baseUrl/large-response"
+if ($result.ExitCode -eq 63) {
+    Write-Pass "--max-filesize aborted transfer correctly (ExitCode 63)."
+} else {
+    Write-Fail "Expected ExitCode 63, got $($result.ExitCode)."
+}
+
+# ----------------------------------------------------------------
+# Test 113: --speed-limit and --speed-time
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "113. --speed-limit and --speed-time"
+$result = Invoke-CurlTest "-s --speed-limit 1000 --speed-time 2 $baseUrl/slow-response"
+if ($result.ExitCode -eq 28) {
+    Write-Pass "--speed-limit aborted slow transfer correctly (ExitCode 28)."
+} else {
+    Write-Fail "Expected ExitCode 28, got $($result.ExitCode)."
+}
+
+# ----------------------------------------------------------------
+# Test 114: --cacert
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "114. --cacert"
+$certFile = Join-Path $scriptDir "server.crt"
+$result = Invoke-CurlTest "-s --cacert `"$certFile`" $httpsBaseUrl/get"
+if ($result.ExitCode -eq 0) {
+    Write-Pass "--cacert successfully verified self-signed certificate."
+} else {
+    Write-Fail "--cacert failed to verify: $($result.Stderr) (ExitCode: $($result.ExitCode))"
+}
+
+# ----------------------------------------------------------------
+# Test 115: --pinnedpubkey
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "115. --pinnedpubkey"
+$pubkeyFile = Join-Path $scriptDir "server_pubkey.pem"
+try {
+    # Extract public key from certificate
+    $null = & openssl x509 -in $certFile -pubkey -noout | Out-File -FilePath $pubkeyFile -Encoding ascii
+    $result = Invoke-CurlTest "-s -k --pinnedpubkey `"$pubkeyFile`" $httpsBaseUrl/get"
+    if ($result.ExitCode -eq 0) {
+        Write-Pass "--pinnedpubkey successfully verified public key."
+    } else {
+        Write-Fail "--pinnedpubkey failed: $($result.Stderr) (ExitCode: $($result.ExitCode))"
+    }
+} finally {
+    if (Test-Path $pubkeyFile) { Remove-Item $pubkeyFile }
 }
 
 # ----------------------------------------------------------------
