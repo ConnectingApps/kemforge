@@ -191,6 +191,8 @@ def delay_endpoint(n):
 
 @app.route("/status/<int:code>")
 def status_endpoint(code):
+    if code == 204:
+        return make_response("", 204)
     return make_response(f"Status: {code}", code)
 
 
@@ -224,6 +226,74 @@ def retry_endpoint(id, n):
         retry_counts[id] = count + 1
         return make_response(f"Retry attempt {count + 1}/{n} - Failing with 500", 500)
     return jsonify({"success": True, "attempts": count})
+
+
+@app.route("/multiple-headers")
+def multiple_headers():
+    resp = make_response(jsonify({"message": "Check headers"}))
+    resp.headers.add("Set-Cookie", "cookie1=value1")
+    resp.headers.add("Set-Cookie", "cookie2=value2")
+    resp.headers.add("Link", "<http://example.com/rel1>; rel=\"next\"")
+    resp.headers.add("Link", "<http://example.com/rel2>; rel=\"prev\"")
+    return resp
+
+
+@app.route("/chunked")
+def chunked():
+    def generate():
+        for i in range(5):
+            yield f"chunk {i}\n"
+            time.sleep(0.1)
+    return Response(generate(), content_type='text/plain')
+
+
+@app.route("/redirect-303", methods=["GET", "POST", "PUT", "DELETE"])
+def redirect_303():
+    # 303 See Other: Always converts to GET
+    return redirect("/get", code=303)
+
+
+@app.route("/redirect-relative")
+def redirect_relative():
+    resp = make_response("", 302)
+    resp.headers["Location"] = "/get"
+    return resp
+
+
+@app.route("/post-data-raw", methods=["POST"])
+def post_data_raw():
+    return jsonify({"data": request.get_data(as_text=True)})
+
+
+@app.route("/cookies/domain")
+def cookies_domain():
+    resp = make_response(jsonify({"message": "Setting domain cookie"}))
+    # Note: For local testing, domain must match exactly or be omitted
+    resp.set_cookie("domain_cookie", "domain_val", domain="127.0.0.1")
+    return resp
+
+
+@app.route("/cookies/expire")
+def cookies_expire():
+    resp = make_response(jsonify({"message": "Setting cookies"}))
+    # Set a cookie that expires in the past
+    resp.set_cookie("expired_cookie", "expired_val", max_age=-1)
+    # Set a cookie that expires in the future
+    resp.set_cookie("valid_cookie", "valid_val", max_age=3600)
+    return resp
+
+
+@app.route("/decompressed")
+def decompressed_endpoint():
+    # Flask with standard setup might not automatically compress unless we use an extension
+    # but we can manually return a gzipped body if we want to test curl's decompression.
+    import gzip
+    content = json.dumps({"message": "this was compressed"}).encode('utf-8')
+    out = gzip.compress(content)
+    resp = make_response(out)
+    resp.headers['Content-Encoding'] = 'gzip'
+    resp.headers['Content-Type'] = 'application/json'
+    return resp
 
 
 # ---------------------------------------------------------------------------

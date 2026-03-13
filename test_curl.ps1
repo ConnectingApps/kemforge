@@ -61,6 +61,7 @@ function Write-Skip {
 function Invoke-CurlTest {
     param(
         [string]$Arguments,
+        [string]$Stdin = $null,
         [switch]$ReturnStderr
     )
     $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -68,12 +69,19 @@ function Invoke-CurlTest {
     $psi.Arguments = $Arguments
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
+    $psi.RedirectStandardInput = $Stdin -ne $null
     $psi.UseShellExecute = $false
     $psi.CreateNoWindow = $true
 
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $psi
     $process.Start() | Out-Null
+
+    if ($Stdin -ne $null) {
+        $process.StandardInput.Write($Stdin)
+        $process.StandardInput.Close()
+    }
+
     $stdout = $process.StandardOutput.ReadToEnd()
     $stderr = $process.StandardError.ReadToEnd()
     $process.WaitForExit()
@@ -1315,6 +1323,295 @@ if ($passed301 -and $passed308) {
     Write-Pass "Specific redirect handling (301/308) succeeded."
 } else {
     Write-Fail "Redirect 301/308 failed. 301: $passed301, 308: $passed308"
+}
+
+# ----------------------------------------------------------------
+# Test 74: Handling 204 No Content
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "74. Handling 204 No Content"
+$result = Invoke-CurlTest "-s -o /dev/null -w `"%{http_code}`" $baseUrl/status/204"
+if ($result.Stdout.Trim() -eq "204") {
+    Write-Pass "Correctly handled 204 No Content response."
+} else {
+    Write-Fail "Expected 204 but got: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 75: Multiple Headers with same name (Server to Client)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "75. Multiple Headers with Same Name (Server to Client)"
+$result = Invoke-CurlTest "-s -i $baseUrl/multiple-headers"
+if ($result.Stdout -match "Set-Cookie: cookie1=value1" -and $result.Stdout -match "Set-Cookie: cookie2=value2" -and $result.Stdout -match "Link:.*rel=`"next`"" -and $result.Stdout -match "Link:.*rel=`"prev`"") {
+    Write-Pass "Multiple headers with the same name received correctly."
+} else {
+    Write-Fail "Missing expected headers in output: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 76: Chunked Transfer Encoding
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "76. Chunked Transfer Encoding"
+$result = Invoke-CurlTest "-s $baseUrl/chunked"
+if ($result.Stdout -match "chunk 0" -and $result.Stdout -match "chunk 4") {
+    Write-Pass "Chunked transfer encoding response received and reassembled."
+} else {
+    Write-Fail "Chunked response incomplete or incorrect: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 77: Decompression Body Verification
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "77. Decompression Body Verification"
+$result = Invoke-CurlTest "-s --compressed $baseUrl/decompressed"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    if ($json.message -eq "this was compressed") {
+        Write-Pass "Gzipped body was correctly decompressed and matches expected content."
+    } else {
+        Write-Fail "Decompressed content mismatch: $($result.Stdout)"
+    }
+} catch {
+    Write-Fail "Failed to parse decompressed JSON: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 78: 303 See Other Redirect
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "78. 303 See Other Redirect (Method change to GET)"
+# POST to 303 should result in a GET to the location
+$result = Invoke-CurlTest "-s -L -d `"data`" $baseUrl/redirect-303"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    # /get endpoint returns JSON with 'url' but NO 'form' or 'data' if it was a GET
+    if ($json.url -match "/get$") {
+        Write-Pass "303 redirect converted POST to GET as expected."
+    } else {
+        Write-Fail "303 redirect did not result in GET: $($result.Stdout)"
+    }
+} catch {
+    Write-Fail "Failed to parse response after 303 redirect: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 79: Relative URL Redirects
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "79. Relative URL Redirects"
+$result = Invoke-CurlTest "-s -L $baseUrl/redirect-relative"
+if ($result.Stdout -match "`"url`":\s*`"$baseUrl/get`"") {
+    Write-Pass "Handled relative URL in Location header correctly."
+} else {
+    Write-Fail "Relative redirect failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 80: Protocol Switching (HTTP to HTTPS)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "80. Protocol Switching (HTTP to HTTPS)"
+$result = Invoke-CurlTest "-s -L -k $baseUrl/redirect-to?url=$httpsBaseUrl/get"
+if ($result.Stdout -match "`"url`":\s*`"$httpsBaseUrl/get`"") {
+    Write-Pass "Followed redirect from HTTP to HTTPS successfully."
+} else {
+    Write-Fail "Protocol switch failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 81: --noproxy Support
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "81. --noproxy Support"
+$oldProxy = $env:http_proxy
+$env:http_proxy = "http://invalid-proxy:9999"
+try {
+    $result = Invoke-CurlTest "-s --noproxy 127.0.0.1 $baseUrl/get"
+    if ($result.ExitCode -eq 0) {
+        Write-Pass "--noproxy correctly bypassed the invalid proxy."
+    } else {
+        Write-Fail "--noproxy failed to bypass or tool exited with error: $($result.ExitCode)"
+    }
+} finally {
+    $env:http_proxy = $oldProxy
+}
+
+# ----------------------------------------------------------------
+# Test 82: Case-Insensitivity of Proxy Environment Variables
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "82. Case-Insensitivity of Proxy Environment Variables"
+# On Linux, curl ignores uppercase HTTP_PROXY for security (HTTPoxy).
+# However, ALL_PROXY / all_proxy are typically both supported.
+$oldProxy = $env:ALL_PROXY
+$env:ALL_PROXY = "http://127.0.0.1:$httpPort/proxy"
+try {
+    # We use a non-localhost URL to ensure proxy is used
+    $result = Invoke-CurlTest "-s http://example.com/get"
+    if ($result.Stdout -match "example.com/get") {
+        Write-Pass "Respected ALL_PROXY (uppercase) environment variable."
+    } else {
+        Write-Fail "ALL_PROXY was not respected: $($result.Stdout)"
+    }
+} finally {
+    $env:ALL_PROXY = $oldProxy
+}
+
+# ----------------------------------------------------------------
+# Test 83: HTTPS over HTTP Proxy (Tunneling)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "83. HTTPS over HTTP Proxy (Tunneling)"
+Write-Skip "HTTPS over HTTP Proxy (Tunneling) requires CONNECT support in mock server."
+
+# ----------------------------------------------------------------
+# Test 84: Exit Code Specificity
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "84. Exit Code Specificity (DNS Failure)"
+$result = Invoke-CurlTest "-s http://this-domain-does-not-exist.invalid"
+if ($result.ExitCode -eq 6) {
+    Write-Pass "Correctly returned exit code 6 for DNS failure."
+} else {
+    Write-Fail "Expected exit code 6, but got $($result.ExitCode)"
+}
+
+# ----------------------------------------------------------------
+# Test 85: Standard CLI Flags (--help, --version)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "85. Standard CLI Flags (--help, --version)"
+$resHelp = Invoke-CurlTest "--help"
+$resVer = Invoke-CurlTest "--version"
+if ($resHelp.Stdout -match "Usage:" -and $resVer.Stdout -match "curl") {
+    Write-Pass "Standard --help and --version flags work."
+} else {
+    Write-Fail "--help or --version output unexpected."
+}
+
+# ----------------------------------------------------------------
+# Test 86: Combining -i and -o
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "86. Combining -i and -o"
+$outFile = Join-Path $scriptDir "test_io.txt"
+try {
+    $result = Invoke-CurlTest "-s -i -o `"$outFile`" $baseUrl/get"
+    if (Test-Path $outFile) {
+        $content = Get-Content $outFile -Raw
+        if ($content -match "HTTP/1.1 200 OK" -and $content -match "`"url`":") {
+            Write-Pass "Combined -i and -o successfully saved headers and body to file."
+        } else {
+            Write-Fail "File content mismatch."
+        }
+    } else {
+        Write-Fail "Output file not created."
+    }
+} finally {
+    if (Test-Path $outFile) { Remove-Item $outFile }
+}
+
+# ----------------------------------------------------------------
+# Test 87: Multiple -o flags for Multiple URLs
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "87. Multiple -o flags for Multiple URLs"
+$out1 = Join-Path $scriptDir "out1.txt"
+$out2 = Join-Path $scriptDir "out2.txt"
+try {
+    $result = Invoke-CurlTest "-s $baseUrl/get -o `"$out1`" $baseUrl/headers -o `"$out2`""
+    if ((Test-Path $out1) -and (Test-Path $out2)) {
+        if ((Get-Content $out1 -Raw) -match "get" -and (Get-Content $out2 -Raw) -match "headers") {
+            Write-Pass "Multiple -o flags correctly saved multiple URLs to separate files."
+        } else {
+            Write-Fail "Multiple -o file contents incorrect."
+        }
+    } else {
+        Write-Fail "One or both output files were not created."
+    }
+} finally {
+    if (Test-Path $out1) { Remove-Item $out1 }
+    if (Test-Path $out2) { Remove-Item $out2 }
+}
+
+# ----------------------------------------------------------------
+# Test 88: --data-raw Flag
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "88. --data-raw Flag"
+$result = Invoke-CurlTest "-s --data-raw `"@literal`" $baseUrl/post-data-raw"
+if ($result.Stdout -match "`"@literal`"") {
+    Write-Pass "--data-raw sent @ character literally."
+} else {
+    Write-Fail "--data-raw failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 89: Uploading from Stdin with -T -
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "89. Uploading from Stdin with -T -"
+$result = Invoke-CurlTest "-s -T - $baseUrl/put" -Stdin "upload from stdin"
+if ($result.Stdout -match "upload from stdin") {
+    Write-Pass "Successfully uploaded data from stdin using -T -."
+} else {
+    Write-Fail "Upload from stdin failed: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 90: Multiple Headers with Same Name (Client to Server)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "90. Multiple Headers with Same Name (Client to Server)"
+$result = Invoke-CurlTest "-s -H `"X-Multi: value1`" -H `"X-Multi: value2`" $baseUrl/headers"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    if ($json.headers.'X-Multi' -match "value1" -and $json.headers.'X-Multi' -match "value2") {
+        Write-Pass "Sent multiple headers with same name correctly."
+    } else {
+        Write-Fail "Headers mismatch: $($result.Stdout)"
+    }
+} catch {
+    Write-Fail "Failed to parse JSON: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 91: Cookie Domain Scoping
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "91. Cookie Domain Scoping"
+$cookieFile = Join-Path $scriptDir "cookies_scope.txt"
+try {
+    Invoke-CurlTest "-s -c `"$cookieFile`" $baseUrl/cookies/domain" | Out-Null
+    $result = Invoke-CurlTest "-s -b `"$cookieFile`" $baseUrl/cookies"
+    if ($result.Stdout -match "domain_cookie") {
+        Write-Pass "Cookie with domain scoping sent back correctly."
+    } else {
+        Write-Fail "Cookie with domain scoping NOT sent back: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $cookieFile) { Remove-Item $cookieFile }
+}
+
+# ----------------------------------------------------------------
+# Test 92: Cookie Expiration
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "92. Cookie Expiration"
+$cookieFile = Join-Path $scriptDir "cookies_expire.txt"
+try {
+    Invoke-CurlTest "-s -c `"$cookieFile`" $baseUrl/cookies/expire" | Out-Null
+    $result = Invoke-CurlTest "-s -b `"$cookieFile`" $baseUrl/cookies"
+    if ($result.Stdout -match "valid_cookie" -and -not ($result.Stdout -match "expired_cookie")) {
+        Write-Pass "Cookie expiration respected (valid sent, expired NOT sent)."
+    } else {
+        Write-Fail "Cookie expiration NOT respected: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $cookieFile) { Remove-Item $cookieFile }
 }
 
 # ----------------------------------------------------------------

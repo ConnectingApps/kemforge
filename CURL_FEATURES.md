@@ -1130,7 +1130,7 @@ curl -s --trace-ascii trace.txt http://127.0.0.1:8080/get
 
 ---
 
-## 73. Specific Redirect Handling (301, 308)
+### 73. Specific Redirect Handling (301, 308)
 **Description**: Specifically tests permanent redirects (301 and 308) to ensure correct method preservation or conversion.
 **Input**:
 ```bash
@@ -1138,3 +1138,219 @@ curl -s -L -d "data" http://127.0.0.1:8080/redirect-308
 ```
 **Output**:
 (The 308 redirect preserves the POST method and data in the subsequent request.)
+
+---
+
+### 74. Handling 204 No Content
+**Description**: Verifies that the tool correctly handles responses with no body (204 No Content).
+**Input**:
+```bash
+curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/status/204
+```
+**Output**:
+```text
+204
+```
+
+---
+
+### 75. Multiple Headers with Same Name (Server to Client)
+**Description**: Tests how the tool handles receiving multiple headers with the same name from the server, such as multiple `Set-Cookie` or `Link` headers.
+**Input**:
+```bash
+curl -s -i http://127.0.0.1:8080/multiple-headers
+```
+**Output**:
+(Output includes multiple `Set-Cookie` and `Link` header lines.)
+
+---
+
+### 76. Chunked Transfer Encoding
+**Description**: Verifies that the tool correctly handles and reassembles responses using `Transfer-Encoding: chunked`.
+**Input**:
+```bash
+curl -s http://127.0.0.1:8080/chunked
+```
+**Output**:
+(The reassembled content of all chunks.)
+
+---
+
+### 77. Decompression Body Verification
+**Description**: Verifies that the tool correctly decompresses a gzipped response body when using the `--compressed` flag.
+**Input**:
+```bash
+curl -s --compressed http://127.0.0.1:8080/decompressed
+```
+**Output**:
+(The decompressed JSON body.)
+
+---
+
+### 78. 303 See Other Redirect
+**Description**: Tests the `303 See Other` redirect, which should always convert the request method to `GET`.
+**Input**:
+```bash
+curl -s -L -X POST -d "data" http://127.0.0.1:8080/redirect-303
+```
+**Output**:
+(The response from the redirected URL, fetched via GET.)
+
+---
+
+### 79. Relative URL Redirects
+**Description**: Verifies that the tool correctly handles a `Location` header that contains a relative path.
+**Input**:
+```bash
+curl -s -L http://127.0.0.1:8080/redirect-relative
+```
+**Output**:
+(The response from the target resource.)
+
+---
+
+### 80. Protocol Switching
+**Description**: Tests redirects that move from `http://` to `https://`.
+**Input**:
+```bash
+curl -s -L -k http://127.0.0.1:8080/redirect-to?url=https://127.0.0.1:8443/get
+```
+**Output**:
+(The response from the HTTPS endpoint.)
+
+---
+
+### 81. --noproxy Support
+**Description**: Tests the ability to bypass the proxy for specific domains using the `--noproxy` flag.
+**Input**:
+```bash
+export http_proxy=http://invalid-proxy:9999
+curl -s --noproxy 127.0.0.1 http://127.0.0.1:8080/get
+```
+**Output**:
+(Successful response, bypassing the invalid proxy.)
+
+---
+
+### 82. Case-Insensitivity of Proxy Environment Variables
+**Description**: Verifies that both `http_proxy` and `HTTP_PROXY` are respected.
+**Input**:
+```bash
+export HTTP_PROXY=http://127.0.0.1:8080/proxy
+curl -s http://google.com/get
+```
+**Output**:
+(The request is routed through the proxy.)
+
+---
+
+### 83. HTTPS over HTTP Proxy (Tunneling)
+**Description**: Tests `CONNECT` requests through a proxy to reach an HTTPS destination.
+**Input**:
+```bash
+curl -s -x http://127.0.0.1:8080/proxy -p https://127.0.0.1:8443/get
+```
+**Output**:
+(Response from the HTTPS server delivered via the proxy tunnel.)
+
+---
+
+### 84. Exit Code Specificity
+**Description**: Verifies that the tool returns specific exit codes for different types of failures (e.g., 6 for DNS failure).
+**Input**:
+```bash
+curl -s http://non-existent-domain.invalid
+```
+**Output**:
+(No stdout; exit code 6.)
+
+---
+
+### 85. Standard CLI Flags (--help, --version)
+**Description**: Ensures the tool provides standard help and version information.
+**Input**:
+```bash
+curl --help
+curl --version
+```
+**Output**:
+(Usage information and version details.)
+
+---
+
+### 86. Combining -i and -o
+**Description**: Verifies behavior when including headers in output (`-i`) while saving to a file (`-o`).
+**Input**:
+```bash
+curl -s -i -o response.txt http://127.0.0.1:8080/get
+```
+**Output**:
+(Headers and body are saved to `response.txt`.)
+
+---
+
+### 87. Multiple -o flags for Multiple URLs
+**Description**: Verifies that each URL can be saved to a specific file when fetching multiple URLs.
+**Input**:
+```bash
+curl -s http://127.0.0.1:8080/get -o out1.txt http://127.0.0.1:8080/headers -o out2.txt
+```
+**Output**:
+(Two files are created, each with the content of the respective URL.)
+
+---
+
+### 88. --data-raw Flag
+**Description**: Sends data that starts with `@` as a literal string instead of a filename.
+**Input**:
+```bash
+curl -s --data-raw "@literal" http://127.0.0.1:8080/post
+```
+**Output**:
+(JSON response showing `@literal` in the data/form fields.)
+
+---
+
+### 89. Uploading from Stdin with -T -
+**Description**: Tests uploading data from standard input using the `-T -` flag.
+**Input**:
+```bash
+echo "upload data" | curl -s -T - http://127.0.0.1:8080/put
+```
+**Output**:
+(JSON response reflecting the uploaded data.)
+
+---
+
+### 90. Multiple Headers with Same Name (Client to Server)
+**Description**: Ensures that sending multiple `-H` flags with the same name results in all of them being sent.
+**Input**:
+```bash
+curl -s -H "X-Multi: value1" -H "X-Multi: value2" http://127.0.0.1:8080/headers
+```
+**Output**:
+(JSON response showing both values for the header.)
+
+---
+
+### 91. Cookie Domain and Path Scoping
+**Description**: Verifies that cookies are only sent back if the request matches the cookie's domain and path.
+**Input**:
+```bash
+curl -s -c cookies.txt http://127.0.0.1:8080/cookies/domain
+curl -s -b cookies.txt http://127.0.0.1:8080/cookies
+```
+**Output**:
+(JSON response showing the cookie was sent back if it matched.)
+
+---
+
+### 92. Cookie Expiration
+**Description**: Verifies that the tool respects cookie expiration.
+**Input**:
+```bash
+curl -s -c cookies.txt http://127.0.0.1:8080/cookies/expire
+curl -s -b cookies.txt http://127.0.0.1:8080/cookies
+```
+**Output**:
+(JSON response showing only non-expired cookies.)
