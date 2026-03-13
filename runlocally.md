@@ -5,7 +5,7 @@ Here are the step-by-step commands to manually test everything:
 ```bash
 cd /home/daan-acohen/repos/KemForge
 python3 -m venv .venv
-.venv/bin/pip install flask pyopenssl
+.venv/bin/pip install flask cryptography
 ```
 
 #### Step 2: Start the Flask test server
@@ -70,7 +70,7 @@ curl -s -r 0-50 http://127.0.0.1:8080/range/1024
 
 | Step | Command | Terminal |
 |------|---------|----------|
-| Setup (once) | `python3 -m venv .venv && .venv/bin/pip install flask pyopenssl` | any |
+| Setup (once) | `python3 -m venv .venv && .venv/bin/pip install flask cryptography` | any |
 | Start server | `.venv/bin/python test_server.py` | terminal 1 |
 | Run all tests | `pwsh -File test_curl.ps1 curl` | terminal 2 |
 | Stop server | `Ctrl+C` in terminal 1 | terminal 1 |

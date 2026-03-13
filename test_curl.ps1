@@ -101,7 +101,7 @@ function Invoke-CurlTest {
 
 if (-not (Test-Path $venvPython)) {
     Write-Host "ERROR: Virtual-environment Python not found at $venvPython" -ForegroundColor Red
-    Write-Host "Create it with:  python3 -m venv .venv && .venv/bin/pip install flask pyopenssl" -ForegroundColor Yellow
+    Write-Host "Create it with:  python3 -m venv .venv && .venv/bin/pip install flask cryptography" -ForegroundColor Yellow
     exit 1
 }
 if (-not (Test-Path $testServer)) {

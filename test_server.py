@@ -16,12 +16,17 @@ import argparse
 import json
 import os
 import string
-import ssl
 import threading
 import time
 import socket
+import datetime
+import ipaddress
 from flask import Flask, request, jsonify, redirect, make_response, Response
-from OpenSSL import crypto
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 app = Flask(__name__)
 
@@ -51,24 +56,64 @@ def _request_data():
 
 
 def generate_cert(cert_path, key_path):
-    k = crypto.PKey()
-    k.generate_key(crypto.TYPE_RSA, 2048)
-    cert = crypto.X509()
-    cert.get_subject().CN = "127.0.0.1"
-    cert.set_serial_number(1000)
-    cert.gmtime_adj_notBefore(0)
-    cert.gmtime_adj_notAfter(10*365*24*60*60)
-    cert.set_issuer(cert.get_subject())
-    # Add SANs
-    cert.add_extensions([
-        crypto.X509Extension(b"subjectAltName", False, b"IP:127.0.0.1, DNS:localhost")
+    """Modernized certificate generation using the cryptography library."""
+    key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
+
+    subject = issuer = x509.Name([
+        x509.NameAttribute(NameOID.COMMON_NAME, "127.0.0.1"),
     ])
-    cert.set_pubkey(k)
-    cert.sign(k, 'sha256')
+
+    cert = x509.CertificateBuilder().subject_name(
+        subject
+    ).issuer_name(
+        issuer
+    ).public_key(
+        key.public_key()
+    ).serial_number(
+        x509.random_serial_number()
+    ).not_valid_before(
+        datetime.datetime.now(datetime.timezone.utc)
+    ).not_valid_after(
+        # Standard validity for modern clients (e.g. Chrome 398-day limit)
+        datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)
+    ).add_extension(
+        x509.SubjectAlternativeName([
+            x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+            x509.DNSName("localhost"),
+        ]),
+        critical=False,
+    ).add_extension(
+        x509.BasicConstraints(ca=False, path_length=None),
+        critical=True,
+    ).add_extension(
+        x509.KeyUsage(
+            digital_signature=True,
+            content_commitment=False,
+            key_encipherment=True,
+            data_encipherment=False,
+            key_agreement=False,
+            key_cert_sign=False,
+            crl_sign=False,
+            encipher_only=False,
+            decipher_only=False,
+        ),
+        critical=True,
+    ).add_extension(
+        x509.ExtendedKeyUsage([x509.OID_SERVER_AUTH]),
+        critical=False,
+    ).sign(key, hashes.SHA256())
+
     with open(cert_path, "wb") as f:
-        f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
+        f.write(cert.public_bytes(serialization.Encoding.PEM))
     with open(key_path, "wb") as f:
-        f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, k))
+        f.write(key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        ))
 
 
 # ---------------------------------------------------------------------------
