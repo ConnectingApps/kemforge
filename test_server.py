@@ -82,6 +82,11 @@ def patch_endpoint():
     return jsonify(_request_data())
 
 
+@app.route("/basic-auth-check")
+def basic_auth_check():
+    return jsonify({"authorization": request.headers.get("Authorization")})
+
+
 @app.route("/basic-auth/<user>/<password>")
 def basic_auth(user, password):
     auth = request.authorization
@@ -179,6 +184,26 @@ def retry_endpoint(id, n):
 # Simple forward-proxy handler (Test 19)
 # ---------------------------------------------------------------------------
 
+@app.route("/redirect-302", methods=["GET", "POST", "PUT", "DELETE"])
+def redirect_302():
+    return redirect("/get", code=302)
+
+
+@app.route("/redirect-307", methods=["GET", "POST", "PUT", "DELETE"])
+def redirect_307():
+    return redirect("/post", code=307)
+
+
+@app.route("/redirect-301", methods=["GET", "POST", "PUT", "DELETE"])
+def redirect_301():
+    return redirect("/get", code=301)
+
+
+@app.route("/redirect-308", methods=["GET", "POST", "PUT", "DELETE"])
+def redirect_308():
+    return redirect("/post", code=308)
+
+
 @app.route("/proxy", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD"])
 def proxy_handler():
     """
@@ -190,7 +215,11 @@ def proxy_handler():
     the local /get handler.  For the test we only need to prove that the
     proxy flag works; we do this by returning a header indicating proxy use.
     """
-    resp = jsonify({"proxied": True, "url": request.url})
+    resp = jsonify({
+        "proxied": True,
+        "url": request.url,
+        "proxy-auth": request.headers.get("Proxy-Authorization")
+    })
     resp.headers["X-Proxy"] = "true"
     return resp
 

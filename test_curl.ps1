@@ -918,6 +918,122 @@ if ($result.Stdout -match "Status: 200" -and $result.Stdout -match "Status: 201"
 }
 
 # ----------------------------------------------------------------
+# Test 47: Cumulative Headers (Multiple -H)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "47. Cumulative Headers (Multiple -H)"
+$result = Invoke-CurlTest "-s -H `"X-Header1: Val1`" -H `"X-Header2: Val2`" $baseUrl/headers"
+if ($result.Stdout -match "X-Header1.*Val1" -and $result.Stdout -match "X-Header2.*Val2") {
+    Write-Pass "Multiple headers sent and received correctly."
+} else {
+    Write-Fail "Multiple headers test failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 48: Concatenating Multiple Data Arguments (Multiple -d)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "48. Concatenating Multiple Data Arguments (Multiple -d)"
+$result = Invoke-CurlTest "-s -d `"user=admin`" -d `"session=active`" $baseUrl/post"
+if ($result.Stdout -match "`"user=admin&session=active`"") {
+    Write-Pass "Multiple data arguments concatenated correctly."
+} else {
+    Write-Fail "Multiple data concatenation failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 49: URL-Embedded Credentials
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "49. URL-Embedded Credentials"
+# Construct URL with credentials: http://user:password@127.0.0.1:8080/basic-auth-check
+$credUrl = "http://user:password@127.0.0.1:$httpPort/basic-auth-check"
+$result = Invoke-CurlTest "-s $credUrl"
+if ($result.Stdout -match "Basic dXNlcjpwYXNzd29yZA==") {
+    Write-Pass "URL-embedded credentials correctly converted to Authorization header."
+} else {
+    Write-Fail "URL credentials test failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 50: Proxy Authentication
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "50. Proxy Authentication"
+# Use local server as proxy with credentials
+$result = Invoke-CurlTest "-s -x http://puser:ppass@127.0.0.1:$httpPort $baseUrl/proxy"
+if ($result.Stdout -match "Basic cHVzZXI6cHBhc3M=") {
+    Write-Pass "Proxy authentication correctly sent as Proxy-Authorization header."
+} else {
+    Write-Fail "Proxy authentication test failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 51: Redirect Method Conversion (301/302 vs 307/308)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "51. Redirect Method Conversion"
+# 302: POST should become GET
+$result302 = Invoke-CurlTest "-s -L -d `"data`" $baseUrl/redirect-302"
+# 307: POST should stay POST
+$result307 = Invoke-CurlTest "-s -L -d `"data`" $baseUrl/redirect-307"
+
+$passed302 = $result302.Stdout -match "url.*get"
+$passed307 = $result307.Stdout -match "url.*post" -and $result307.Stdout -match "data"
+
+if ($passed302 -and $passed307) {
+    Write-Pass "Redirect method conversion handled correctly for 302 and 307."
+} else {
+    Write-Fail "Redirect conversion failed. 302 match: $passed302, 307 match: $passed307"
+}
+
+# ----------------------------------------------------------------
+# Test 52: Overriding the Host Header
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "52. Overriding the Host Header"
+$result = Invoke-CurlTest "-s -H `"Host: production.com`" $baseUrl/headers"
+if ($result.Stdout -match "`"Host`":\s*`"production.com`"") {
+    Write-Pass "Custom Host header correctly overrode the default."
+} else {
+    Write-Fail "Host header override failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 53: Binary Data via --data-binary
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "53. Binary Data via --data-binary"
+$binFile = Join-Path $scriptDir "test_binary.bin"
+# Create a file with a null byte to test binary preservation
+[byte[]]$bytes = 65, 0, 66 # 'A', null, 'B'
+[System.IO.File]::WriteAllBytes($binFile, $bytes)
+try {
+    $result = Invoke-CurlTest "-s --data-binary @$binFile $baseUrl/post"
+    # The server returns 'data' which should contain the null byte (escaped or literal in JSON)
+    if ($result.Stdout -match "A\\u0000B" -or $result.Stdout -match "A\x00B") {
+        Write-Pass "Binary data preserved correctly."
+    } else {
+        Write-Fail "Binary data test failed. Stdout: $($result.Stdout)"
+    }
+} finally {
+    if (Test-Path $binFile) { Remove-Item $binFile }
+}
+
+# ----------------------------------------------------------------
+# Test 54: Customizing Cookie Storage (Cookies without File)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "54. Cookies without File (-b `"`")"
+# -b "" should enable cookie session without a file.
+$result = Invoke-CurlTest "-s -b `"`" $baseUrl/cookies/set/tmp/val $baseUrl/cookies"
+if ($result.Stdout -match "`"tmp`":\s*`"val`"") {
+    Write-Pass "Cookie session enabled without file using -b `"`"."
+} else {
+    Write-Fail "Cookies without file test failed. Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
 # Stop the local server and print summary
 # ----------------------------------------------------------------
 if (-not $serverProcess.HasExited) { $serverProcess.Kill() }

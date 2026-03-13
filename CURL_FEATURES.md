@@ -774,3 +774,122 @@ curl -s "httpbin.org/status/{200,404}"
 ```
 **Output**:
 (The responses for each of the specified status codes.)
+
+---
+
+## 47. Cumulative Headers (Multiple `-H`)
+**Description**: Sends multiple custom HTTP headers using multiple `-H` flags.
+**Input**:
+```bash
+curl -s -H "X-Header1: Val1" -H "X-Header2: Val2" httpbin.org/headers
+```
+**Output**:
+```json
+{
+  "headers": {
+    "X-Header1": "Val1",
+    "X-Header2": "Val2"
+  }
+}
+```
+
+---
+
+## 48. Concatenating Multiple Data Arguments (Multiple `-d`)
+**Description**: Concatenates multiple `-d` arguments with an ampersand (`&`).
+**Input**:
+```bash
+curl -s -d "user=admin" -d "session=active" httpbin.org/post
+```
+**Output**:
+```json
+{
+  "form": {
+    "session": "active",
+    "user": "admin"
+  }
+}
+```
+
+---
+
+## 49. URL-Embedded Credentials
+**Description**: Extracts credentials from the URL and converts them to a Basic Authentication header.
+**Input**:
+```bash
+curl -s http://user:password@httpbin.org/basic-auth/user/password
+```
+**Output**:
+```json
+{
+  "authenticated": true,
+  "user": "user"
+}
+```
+
+---
+
+## 50. Proxy Authentication
+**Description**: Supports proxy authentication within the proxy URL.
+**Input**:
+```bash
+curl -s -x http://puser:ppass@proxy.example.com:8080 httpbin.org/get
+```
+**Output**:
+(Request is sent to proxy with `Proxy-Authorization: Basic ...` header.)
+
+---
+
+## 51. Redirect Method Conversion (301/302 vs 307/308)
+**Description**: Handles method conversion during redirects. 301/302 converts POST to GET; 307/308 preserves it.
+**Input**:
+```bash
+curl -s -L -d "data" httpbin.org/redirect-to?url=http://httpbin.org/get&status_code=302
+```
+**Output**:
+(Subsequent request is a GET to /get)
+
+---
+
+## 52. Overriding the Host Header
+**Description**: Overrides the default `Host` header using `-H`.
+**Input**:
+```bash
+curl -s -H "Host: production.com" httpbin.org/headers
+```
+**Output**:
+```json
+{
+  "headers": {
+    "Host": "production.com"
+  }
+}
+```
+
+---
+
+## 53. Binary Data via `--data-binary`
+**Description**: Sends raw binary data without any processing or newline stripping.
+**Input**:
+```bash
+curl -s --data-binary @file.bin httpbin.org/post
+```
+**Output**:
+(The exact bytes from file.bin are sent in the request body.)
+
+---
+
+## 54. Customizing Cookie Storage (Cookies without File)
+**Description**: Enables cookie handling for the current session without using a disk file by passing an empty string to `-b`.
+**Input**:
+```bash
+curl -s -b "" httpbin.org/cookies/set/tmp/val httpbin.org/cookies
+```
+**Output**:
+```json
+{
+  "cookies": {
+    "tmp": "val"
+  }
+}
+```
