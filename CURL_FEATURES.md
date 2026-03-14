@@ -1602,13 +1602,19 @@ curl -s --cacert server.crt https://127.0.0.1:8443/get
 ---
 
 ### 115. Pinned Public Key Verification (`--pinnedpubkey`)
-**Description**: Verifies the server's public key against a provided hash or file.
-**Input**:
+**Description**: Verifies the server's public key against a provided hash or file. Supports PEM/DER public keys and base64 encoded SHA256 hashes. (Note: for file pinning, `curl` typically requires a public key file, not a certificate).
+**Input (File)**:
 ```bash
-curl -s -k --pinnedpubkey server.crt https://127.0.0.1:8443/get
+# Extract public key from certificate first
+openssl x509 -in server.crt -pubkey -noout > server_pub.pem
+curl -s -k --pinnedpubkey server_pub.pem https://127.0.0.1:8443/get
+```
+**Input (Hash)**:
+```bash
+curl -s -k --pinnedpubkey "sha256//sTvYRerzKS4plCSo7seaa52NGgTTyfjpynnqgWGBlm8=" https://127.0.0.1:8443/get
 ```
 **Output**:
-(Successful connection if the server's public key matches the pinned key.)
+(Successful connection if the server's public key matches the pinned key, otherwise fails with an error.)
 
 ---
 

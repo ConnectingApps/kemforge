@@ -24,6 +24,8 @@ $totalTests = 0
 $scriptDir = $PSScriptRoot
 $venvPython = Join-Path $scriptDir ".venv/bin/python"
 $testServer = Join-Path $scriptDir "test_server.py"
+$certFile = Join-Path $scriptDir "server.crt"
+$pubkeyFile = Join-Path $scriptDir "server_pub.pem"
 $httpPort = 8080
 $httpsPort = 8443
 $proxyPort = 8081
@@ -65,6 +67,42 @@ function Invoke-CurlTest {
         [string]$Stdin = $null,
         [switch]$ReturnStderr
     )
+
+    $isKemforge = ($CurlCmd -ne "curl" -and $CurlCmd -ne "curl.exe")
+
+    # When testing kemforge, run curl first as a baseline
+    if ($isKemforge) {
+        $psiCurl = New-Object System.Diagnostics.ProcessStartInfo
+        $psiCurl.FileName = "curl"
+        $psiCurl.Arguments = $Arguments
+        $psiCurl.WorkingDirectory = $pwd.Path
+        $psiCurl.RedirectStandardOutput = $true
+        $psiCurl.RedirectStandardError = $true
+        $psiCurl.RedirectStandardInput = $Stdin -ne $null
+        $psiCurl.UseShellExecute = $false
+        $psiCurl.CreateNoWindow = $true
+
+        $pCurl = New-Object System.Diagnostics.Process
+        $pCurl.StartInfo = $psiCurl
+        $pCurl.Start() | Out-Null
+        if ($Stdin -ne $null) {
+            $pCurl.StandardInput.Write($Stdin)
+            $pCurl.StandardInput.Close()
+        }
+        
+        # Read both streams to avoid deadlocks
+        $curlOutTask = $pCurl.StandardOutput.ReadToEndAsync()
+        $curlErrTask = $pCurl.StandardError.ReadToEndAsync()
+        $pCurl.WaitForExit()
+        
+        $curlExit = $pCurl.ExitCode
+        if ($curlExit -eq 0) {
+            Write-Host "  [BASELINE] curl: OK" -ForegroundColor DarkGray
+        } else {
+            Write-Host "  [BASELINE] curl: FAILED (ExitCode: $curlExit)" -ForegroundColor Yellow
+        }
+    }
+
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $CurlCmd
     $psi.Arguments = $Arguments
@@ -84,9 +122,13 @@ function Invoke-CurlTest {
         $process.StandardInput.Close()
     }
 
-    $stdout = $process.StandardOutput.ReadToEnd()
-    $stderr = $process.StandardError.ReadToEnd()
+    # Read both streams to avoid deadlocks
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
     $process.WaitForExit()
+    
+    $stdout = $stdoutTask.GetAwaiter().GetResult()
+    $stderr = $stderrTask.GetAwaiter().GetResult()
 
     return @{
         Stdout   = $stdout
@@ -113,7 +155,11 @@ Write-Host "Starting local test server on ports $httpPort (HTTP), $httpsPort (HT
 
 # Stop any existing server process on these ports (cleanup from previous runs)
 try {
-    Get-Process | Where-Object { $_.CommandLine -match "test_server.py" } | Stop-Process -Force -ErrorAction SilentlyContinue
+    if ($IsLinux) {
+        pkill -f "test_server.py"
+    } else {
+        Get-Process | Where-Object { $_.CommandLine -match "test_server.py" } | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
     # Wait a bit for ports to be released
     Start-Sleep -Seconds 1
 } catch {}
@@ -1966,22 +2012,54 @@ if ($result.ExitCode -eq 0) {
 }
 
 # ----------------------------------------------------------------
-# Test 115: --pinnedpubkey
+# Test 115: --pinnedpubkey (Success case - File)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "115. --pinnedpubkey"
-$pubkeyFile = Join-Path $scriptDir "server_pubkey.pem"
+Write-TestHeader "115. --pinnedpubkey (Success case - File)"
+# Extract public key from cert for curl compatibility
+if (-not (Test-Path $pubkeyFile)) {
+    & openssl x509 -in $certFile -pubkey -noout | Out-File -FilePath $pubkeyFile -Encoding ascii
+}
+$result = Invoke-CurlTest "-s -k --pinnedpubkey `"$pubkeyFile`" $httpsBaseUrl/get"
+if ($result.ExitCode -eq 0) {
+    Write-Pass "--pinnedpubkey successfully verified matching public key file."
+} else {
+    Write-Fail "--pinnedpubkey failed: $($result.Stderr) (ExitCode: $($result.ExitCode))"
+}
+
+# ----------------------------------------------------------------
+# Test 115a: --pinnedpubkey (Success case - Hash)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "115a. --pinnedpubkey (Success case - Hash)"
+# Extract public key hash from cert using openssl
+# Note: we need the DER representation of the PUBLIC KEY, not the certificate or PEM.
+$hash = & openssl x509 -in $certFile -pubkey -noout | openssl pkey -pubin -outform DER | openssl dgst -sha256 -binary | openssl enc -base64
+$pinnedHash = "sha256//$($hash.Trim())"
+$result = Invoke-CurlTest "-s -k --pinnedpubkey `"$pinnedHash`" $httpsBaseUrl/get"
+if ($result.ExitCode -eq 0) {
+    Write-Pass "--pinnedpubkey successfully verified with matching SHA256 hash."
+} else {
+    Write-Fail "--pinnedpubkey failed with hash: $($result.Stderr) (ExitCode: $($result.ExitCode))"
+}
+
+# ----------------------------------------------------------------
+# Test 115b: --pinnedpubkey (Failure case - Mismatch)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "115b. --pinnedpubkey (Failure case - Mismatch)"
+$wrongPubkeyFile = Join-Path $scriptDir "wrong_pubkey.pem"
 try {
-    # Extract public key from certificate
-    $null = & openssl x509 -in $certFile -pubkey -noout | Out-File -FilePath $pubkeyFile -Encoding ascii
-    $result = Invoke-CurlTest "-s -k --pinnedpubkey `"$pubkeyFile`" $httpsBaseUrl/get"
-    if ($result.ExitCode -eq 0) {
-        Write-Pass "--pinnedpubkey successfully verified public key."
+    # Generate a dummy public key that won't match
+    $null = & openssl genrsa 2048 | openssl rsa -pubout | Out-File -FilePath $wrongPubkeyFile -Encoding ascii
+    $result = Invoke-CurlTest "-s -k --pinnedpubkey `"$wrongPubkeyFile`" $httpsBaseUrl/get"
+    if ($result.ExitCode -ne 0) {
+        Write-Pass "--pinnedpubkey correctly failed on public key mismatch."
     } else {
-        Write-Fail "--pinnedpubkey failed: $($result.Stderr) (ExitCode: $($result.ExitCode))"
+        Write-Fail "--pinnedpubkey should have failed on mismatch but returned ExitCode 0."
     }
 } finally {
-    if (Test-Path $pubkeyFile) { Remove-Item $pubkeyFile }
+    if (Test-Path $wrongPubkeyFile) { Remove-Item $wrongPubkeyFile }
 }
 
 # ----------------------------------------------------------------

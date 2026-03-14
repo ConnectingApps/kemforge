@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
@@ -43,15 +47,59 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 			if len(cs.PeerCertificates) == 0 {
 				return fmt.Errorf("no peer certificates")
 			}
-			_, err := x509.MarshalPKIXPublicKey(cs.PeerCertificates[0].PublicKey)
+			peerPubKey, err := x509.MarshalPKIXPublicKey(cs.PeerCertificates[0].PublicKey)
 			if err != nil {
 				return err
 			}
-			// Simplified check: if it's a file, read it; if it starts with sha256//, it's a hash
+
 			if strings.HasPrefix(opts.PinnedPubKey, "sha256//") {
-				// We'd normally hash it and compare, but for the test let's just see what it expects
-				// The test might just be checking if the flag exists and we try to use it.
-				return nil
+				peerHash := sha256.Sum256(peerPubKey)
+				hashes := strings.Split(opts.PinnedPubKey, ";")
+				for _, h := range hashes {
+					if strings.HasPrefix(h, "sha256//") {
+						b64Hash := h[8:]
+						decoded, err := base64.StdEncoding.DecodeString(b64Hash)
+						if err != nil {
+							continue
+						}
+						if bytes.Equal(peerHash[:], decoded) {
+							return nil
+						}
+					}
+				}
+				return fmt.Errorf("pinned public key hash mismatch")
+			}
+
+			// Not a hash, so it must be a file path
+			data, err := os.ReadFile(opts.PinnedPubKey)
+			if err != nil {
+				return fmt.Errorf("failed to read pinned public key file: %w", err)
+			}
+
+			var pinnedPubKey []byte
+			block, _ := pem.Decode(data)
+			if block != nil {
+				if block.Type == "PUBLIC KEY" {
+					pinnedPubKey = block.Bytes
+				} else if block.Type == "CERTIFICATE" {
+					cert, err := x509.ParseCertificate(block.Bytes)
+					if err != nil {
+						return fmt.Errorf("failed to parse certificate in pinned public key file: %w", err)
+					}
+					pinnedPubKey, err = x509.MarshalPKIXPublicKey(cert.PublicKey)
+					if err != nil {
+						return fmt.Errorf("failed to marshal pinned public key: %w", err)
+					}
+				} else {
+					return fmt.Errorf("unsupported PEM block type: %s", block.Type)
+				}
+			} else {
+				// Assume DER
+				pinnedPubKey = data
+			}
+
+			if !bytes.Equal(peerPubKey, pinnedPubKey) {
+				return fmt.Errorf("pinned public key mismatch")
 			}
 			return nil
 		}
