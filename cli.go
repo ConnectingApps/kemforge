@@ -276,12 +276,22 @@ func ParseArgs(args []string) []Options {
 		case a == "-E" || a == "--cert":
 			i++
 			if i < len(args) {
-				opts.CertFile = args[i]
+				cert := args[i]
+				opts.CertFile = cert
 				// Check for certificate:password
-				if strings.Contains(opts.CertFile, ":") && !strings.HasPrefix(opts.CertFile, "./") && !strings.HasPrefix(opts.CertFile, "/") {
-					parts := strings.SplitN(opts.CertFile, ":", 2)
-					opts.CertFile = parts[0]
-					opts.Pass = parts[1]
+				if !strings.HasPrefix(cert, "./") && !strings.HasPrefix(cert, "/") {
+					colonIdx := strings.Index(cert, ":")
+					if colonIdx == 1 && len(cert) >= 3 && ((cert[0] >= 'a' && cert[0] <= 'z') || (cert[0] >= 'A' && cert[0] <= 'Z')) && (cert[2] == '\\' || cert[2] == '/') {
+						// Windows drive prefix (e.g., C:\), look for a second colon
+						rest := cert[2:]
+						if nextColon := strings.Index(rest, ":"); nextColon != -1 {
+							opts.CertFile = cert[:2+nextColon]
+							opts.Pass = rest[nextColon+1:]
+						}
+					} else if colonIdx != -1 {
+						opts.CertFile = cert[:colonIdx]
+						opts.Pass = cert[colonIdx+1:]
+					}
 				}
 			}
 		case a == "--key":
