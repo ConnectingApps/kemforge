@@ -1,13 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/net/http2"
@@ -16,33 +22,207 @@ import (
 // BuildClient creates an *http.Client with the appropriate transport,
 // proxy, TLS, timeout, redirect, and cookie jar settings.
 func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: opts.Insecure,
-		},
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: opts.Insecure,
 	}
 
-	// Enable HTTP/2 support on the custom transport
-	if err := http2.ConfigureTransport(transport); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "kemforge: failed to configure HTTP/2: %v\n", err)
+	if opts.PQC {
+		// Go 1.25+ support for ML-KEM
+		tlsConfig.CurvePreferences = []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}
+	}
+
+	if opts.CACert != "" {
+		caCert, err := os.ReadFile(opts.CACert)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: failed to read CA cert: %v\n", err)
+		} else {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(caCert)
+			tlsConfig.RootCAs = caCertPool
+		}
+	}
+
+	if opts.PinnedPubKey != "" {
+		tlsConfig.VerifyConnection = func(cs tls.ConnectionState) error {
+			if len(cs.PeerCertificates) == 0 {
+				return fmt.Errorf("no peer certificates")
+			}
+			peerPubKey, err := x509.MarshalPKIXPublicKey(cs.PeerCertificates[0].PublicKey)
+			if err != nil {
+				return err
+			}
+
+			if strings.HasPrefix(opts.PinnedPubKey, "sha256//") {
+				peerHash := sha256.Sum256(peerPubKey)
+				hashes := strings.Split(opts.PinnedPubKey, ";")
+				for _, h := range hashes {
+					if strings.HasPrefix(h, "sha256//") {
+						b64Hash := h[8:]
+						decoded, err := base64.StdEncoding.DecodeString(b64Hash)
+						if err != nil {
+							continue
+						}
+						if bytes.Equal(peerHash[:], decoded) {
+							return nil
+						}
+					}
+				}
+				return fmt.Errorf("pinned public key hash mismatch")
+			}
+
+			// Not a hash, so it must be a file path
+			data, err := os.ReadFile(opts.PinnedPubKey)
+			if err != nil {
+				return fmt.Errorf("failed to read pinned public key file: %w", err)
+			}
+
+			var pinnedPubKey []byte
+			block, _ := pem.Decode(data)
+			if block != nil {
+				if block.Type == "PUBLIC KEY" {
+					pinnedPubKey = block.Bytes
+				} else if block.Type == "CERTIFICATE" {
+					cert, err := x509.ParseCertificate(block.Bytes)
+					if err != nil {
+						return fmt.Errorf("failed to parse certificate in pinned public key file: %w", err)
+					}
+					pinnedPubKey, err = x509.MarshalPKIXPublicKey(cert.PublicKey)
+					if err != nil {
+						return fmt.Errorf("failed to marshal pinned public key: %w", err)
+					}
+				} else {
+					return fmt.Errorf("unsupported PEM block type: %s", block.Type)
+				}
+			} else {
+				// Assume DER
+				pinnedPubKey = data
+			}
+
+			if !bytes.Equal(peerPubKey, pinnedPubKey) {
+				return fmt.Errorf("pinned public key mismatch")
+			}
+			return nil
+		}
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	// Enable HTTP/2 support on the custom transport unless --http1.1 is set
+	if !opts.HTTP11 {
+		if err := http2.ConfigureTransport(transport); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: failed to configure HTTP/2: %v\n", err)
+		}
+	} else {
+		transport.ForceAttemptHTTP2 = false
+		transport.TLSNextProto = make(map[string]func(string, *tls.Conn) http.RoundTripper)
 	}
 
 	// Set proxy
+	var proxyURL *url.URL
 	if opts.ProxyURL != "" {
-		proxyU, err := url.Parse(opts.ProxyURL)
+		pU, err := url.Parse(opts.ProxyURL)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: invalid proxy URL: %v\n", err)
 			os.Exit(1)
 		}
-		transport.Proxy = http.ProxyURL(proxyU)
+		proxyURL = pU
+		if opts.ProxyUser != "" {
+			parts := strings.SplitN(opts.ProxyUser, ":", 2)
+			if len(parts) == 2 {
+				proxyURL.User = url.UserPassword(parts[0], parts[1])
+			} else {
+				proxyURL.User = url.User(opts.ProxyUser)
+			}
+		}
+	} else if allProxy := os.Getenv("ALL_PROXY"); allProxy != "" {
+		if pU, err := url.Parse(allProxy); err == nil {
+			proxyURL = pU
+		}
+	}
+
+	if proxyURL != nil || opts.NoProxy != "" {
+		transport.Proxy = func(req *http.Request) (*url.URL, error) {
+			// Get noProxy list
+			noProxy := opts.NoProxy
+			if noProxy == "" {
+				noProxy = os.Getenv("NO_PROXY")
+				if noProxy == "" {
+					noProxy = os.Getenv("no_proxy")
+				}
+			}
+
+			// Check if host is in noProxy
+			host := req.URL.Hostname()
+			for _, p := range strings.Split(noProxy, ",") {
+				p = strings.TrimSpace(p)
+				if p == "" {
+					continue
+				}
+				if p == "*" || host == p || strings.HasSuffix(host, "."+p) {
+					return nil, nil
+				}
+			}
+
+			// If we have a specific proxy, return it
+			if proxyURL != nil {
+				return proxyURL, nil
+			}
+
+			// Otherwise fall back to environment (but we already checked NO_PROXY)
+			return http.ProxyFromEnvironment(req)
+		}
+	} else {
+		transport.Proxy = http.ProxyFromEnvironment
 	}
 
 	// Set connect timeout via custom dialer
-	if opts.ConnectTmout > 0 {
-		transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-			d := net.Dialer{Timeout: time.Duration(opts.ConnectTmout * float64(time.Second))}
-			return d.DialContext(ctx, network, addr)
+	dialer := &net.Dialer{
+		Timeout: time.Duration(opts.ConnectTmout * float64(time.Second)),
+	}
+
+	if opts.Interface != "" {
+		localAddr, err := net.ResolveIPAddr("ip", opts.Interface)
+		if err == nil {
+			dialer.LocalAddr = &net.TCPAddr{IP: localAddr.IP}
+		} else {
+			// Try as interface name
+			iface, err := net.InterfaceByName(opts.Interface)
+			if err == nil {
+				addrs, err := iface.Addrs()
+				if err == nil && len(addrs) > 0 {
+					if ipnet, ok := addrs[0].(*net.IPNet); ok {
+						dialer.LocalAddr = &net.TCPAddr{IP: ipnet.IP}
+					}
+				}
+			}
 		}
+	}
+
+	// Set resolve overrides
+	resolveMap := make(map[string]string)
+	for _, r := range opts.ResolveArgs {
+		parts := strings.SplitN(r, ":", 3)
+		if len(parts) == 3 {
+			hostPort := fmt.Sprintf("%s:%s", parts[0], parts[1])
+			resolveMap[hostPort] = fmt.Sprintf("%s:%s", parts[2], parts[1])
+		}
+	}
+
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if opts.UnixSocket != "" {
+			return dialer.DialContext(ctx, "unix", opts.UnixSocket)
+		}
+		if opts.IPv4 {
+			network = "tcp4"
+		} else if opts.IPv6 {
+			network = "tcp6"
+		}
+		if target, ok := resolveMap[addr]; ok {
+			addr = target
+		}
+		return dialer.DialContext(ctx, network, addr)
 	}
 
 	// Build client
@@ -55,11 +235,60 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
+	} else {
+		client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+			if opts.MaxRedirs > 0 && len(via) >= opts.MaxRedirs {
+				return fmt.Errorf("maximum (%d) redirects followed", opts.MaxRedirs)
+			}
+
+			lastReq := via[len(via)-1]
+			resp := req.Response // This might be nil in some Go versions during CheckRedirect? No, it's there.
+
+			if resp != nil {
+				// Handle --post301, --post302, --post303
+				shouldPreservePOST := false
+				if resp.StatusCode == 301 && opts.Post301 {
+					shouldPreservePOST = true
+				} else if resp.StatusCode == 302 && opts.Post302 {
+					shouldPreservePOST = true
+				} else if resp.StatusCode == 303 && opts.Post303 {
+					shouldPreservePOST = true
+				}
+
+				if shouldPreservePOST && lastReq.Method == "POST" {
+					req.Method = "POST"
+					// We need to re-attach the body, but it might have been consumed.
+					// Curl handles this by re-sending. In Go, we might need a GetBody function on the original request.
+					if lastReq.GetBody != nil {
+						req.Body, _ = lastReq.GetBody()
+					}
+				}
+			}
+
+			if opts.LocationTrusted {
+				// Copy authorization header if it's the same host OR we trust it
+				if auth := lastReq.Header.Get("Authorization"); auth != "" {
+					req.Header.Set("Authorization", auth)
+				}
+			}
+
+			return nil
+		}
+	}
+
+	// Set client certificates
+	if opts.CertFile != "" && opts.KeyFile != "" {
+		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: failed to load client cert/key: %v\n", err)
+		} else {
+			transport.TLSClientConfig.Certificates = []tls.Certificate{cert}
+		}
 	}
 
 	// Use a cookie jar when saving cookies with -c or loading with -b
 	var jar *simpleCookieJar
-	if opts.CookieJar != "" || opts.CookieFile != "" {
+	if opts.CookieJar != "" || opts.CookieEnable {
 		jar = &simpleCookieJar{entries: make(map[string]map[string]*http.Cookie)}
 		client.Jar = jar
 	}
