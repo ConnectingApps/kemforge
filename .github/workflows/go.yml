@@ -66,5 +66,10 @@ jobs:
     - name: Build
       run: go build -v .
 
-    - name: Test application
+    - name: Test application (Linux)
+      if: runner.os == 'Linux'
       run: pwsh -File test_curl.ps1 ./kemforge
+
+    - name: Test application (Windows)
+      if: runner.os == 'Windows'
+      run: pwsh -File test_curl.ps1 ./kemforge.exe
