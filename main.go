@@ -193,12 +193,20 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 			tlsVersion = "1.3"
 		}
 		const colorYellow = "\033[33m"
+		const colorGreen = "\033[32m"
+		const colorRed = "\033[31m"
 		const colorReset = "\033[0m"
 		_, _ = fmt.Fprintf(os.Stderr, "%s* TLS DATA:\n", colorYellow)
 		_, _ = fmt.Fprintf(os.Stderr, "* TlsVersion: %s\n", tlsVersion)
 		_, _ = fmt.Fprintf(os.Stderr, "* Cipher:\t%s\n", tls.CipherSuiteName(resp.TLS.CipherSuite))
-		_, _ = fmt.Fprintf(os.Stderr, "* KeyExchangeGroup: %s\n", resp.TLS.CurveID.String())
-		_, _ = fmt.Fprintf(os.Stderr, "* %s\n", colorReset)
+		keyExchangeGroup := resp.TLS.CurveID.String()
+		_, _ = fmt.Fprintf(os.Stderr, "* KeyExchangeGroup: %s\n", keyExchangeGroup)
+		if strings.Contains(strings.ToUpper(keyExchangeGroup), "MLKEM") {
+			_, _ = fmt.Fprintf(os.Stderr, "%s* This server supports post quantum cryptography so the server has protection against quantum attacks.%s\n", colorGreen, colorReset)
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "%s* This server is not protected against quantum attacks as the key exchange group does not contain MLKEM.%s\n", colorRed, colorReset)
+		}
+		_, _ = fmt.Fprintf(os.Stderr, "%s* %s\n", colorYellow, colorReset)
 	}
 
 	// Save cookies if -c specified
