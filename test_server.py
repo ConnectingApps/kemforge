@@ -83,6 +83,7 @@ def generate_cert(cert_path, key_path):
     ).add_extension(
         x509.SubjectAlternativeName([
             x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+            x509.IPAddress(ipaddress.ip_address("::1")),
             x509.DNSName("localhost"),
         ]),
         critical=False,
@@ -576,7 +577,7 @@ def run_https(port):
     key_path = "server.key"
     if not os.path.exists(cert_path) or not os.path.exists(key_path):
         generate_cert(cert_path, key_path)
-    app.run(host="0.0.0.0", port=port, ssl_context=(cert_path, key_path), use_reloader=False)
+    app.run(host="::", port=port, ssl_context=(cert_path, key_path), use_reloader=False)
 
 
 def run_mtls(port):
@@ -593,7 +594,7 @@ def run_mtls(port):
     context.load_verify_locations(cafile=cert_path)
     context.verify_mode = ssl.CERT_REQUIRED
     
-    app.run(host="0.0.0.0", port=port, ssl_context=context, use_reloader=False)
+    app.run(host="::", port=port, ssl_context=context, use_reloader=False)
 
 
 if __name__ == "__main__":
@@ -623,4 +624,4 @@ if __name__ == "__main__":
     proxy_thread.start()
 
     # Start HTTP server (foreground)
-    app.run(host="0.0.0.0", port=args.port, use_reloader=False)
+    app.run(host="::", port=args.port, use_reloader=False)
