@@ -17,6 +17,7 @@ python3 -m venv .venv
 This starts:
 - **HTTP** on `http://127.0.0.1:8080`
 - **HTTPS** (self-signed cert) on `https://127.0.0.1:8443`
+- **mTLS** (client certificate required) on `https://127.0.0.1:8444`
 
 > Leave this running in its own terminal.
 

@@ -21,6 +21,7 @@ import time
 import socket
 import datetime
 import ipaddress
+import ssl
 from flask import Flask, request, jsonify, redirect, make_response, Response
 from cryptography import x509
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
@@ -86,7 +87,7 @@ def generate_cert(cert_path, key_path):
         ]),
         critical=False,
     ).add_extension(
-        x509.BasicConstraints(ca=False, path_length=None),
+        x509.BasicConstraints(ca=True, path_length=None),
         critical=True,
     ).add_extension(
         x509.KeyUsage(
@@ -95,14 +96,17 @@ def generate_cert(cert_path, key_path):
             key_encipherment=True,
             data_encipherment=False,
             key_agreement=False,
-            key_cert_sign=False,
-            crl_sign=False,
+            key_cert_sign=True,
+            crl_sign=True,
             encipher_only=False,
             decipher_only=False,
         ),
         critical=True,
     ).add_extension(
-        x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]),
+        x509.ExtendedKeyUsage([
+            ExtendedKeyUsageOID.SERVER_AUTH,
+            ExtendedKeyUsageOID.CLIENT_AUTH
+        ]),
         critical=False,
     ).sign(key, hashes.SHA256())
 
@@ -563,16 +567,38 @@ def run_https(port):
     app.run(host="::", port=port, ssl_context=(cert_path, key_path), use_reloader=False)
 
 
+def run_mtls(port):
+    """Run a third Flask instance with mTLS enabled."""
+    cert_path = "server.crt"
+    key_path = "server.key"
+    if not os.path.exists(cert_path) or not os.path.exists(key_path):
+        generate_cert(cert_path, key_path)
+    
+    # Create SSL context that REQUIRES a client certificate
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert_path, key_path)
+    # We trust the server's own cert as a CA for the test client certs
+    context.load_verify_locations(cafile=cert_path)
+    context.verify_mode = ssl.CERT_REQUIRED
+    
+    app.run(host="::", port=port, ssl_context=context, use_reloader=False)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Local httpbin-like test server")
     parser.add_argument("--port", type=int, default=8080, help="HTTP port (default 8080)")
     parser.add_argument("--https-port", type=int, default=8443, help="HTTPS port (default 8443)")
+    parser.add_argument("--mtls-port", type=int, default=8444, help="mTLS port (default 8444)")
     parser.add_argument("--proxy-port", type=int, default=8081, help="CONNECT proxy port (default 8081)")
     args = parser.parse_args()
 
     # Start HTTPS server in a background thread
     https_thread = threading.Thread(target=run_https, args=(args.https_port,), daemon=True)
     https_thread.start()
+
+    # Start mTLS server in a background thread
+    mtls_thread = threading.Thread(target=run_mtls, args=(args.mtls_port,), daemon=True)
+    mtls_thread.start()
 
     # Start CONNECT proxy in a background thread
     proxy_thread = threading.Thread(target=run_connect_proxy, args=(args.proxy_port,), daemon=True)
