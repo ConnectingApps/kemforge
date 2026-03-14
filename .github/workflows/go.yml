@@ -5,24 +5,66 @@ name: Go
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "feature/**", "copilot/**", "dependabot/**" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "feature/**", "copilot/**", "dependabot/**" ]
 
 jobs:
 
-  build:
+  verify_test_script:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
-        go-version: '1.20'
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m venv .venv
+        .venv/bin/pip install flask cryptography
+      shell: bash
+
+    - name: Verify test script
+      run: pwsh -File test_curl.ps1 curl
+
+  build_and_test:
+    needs: verify_test_script
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.26'
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        python -m venv .venv
+        .venv/bin/pip install flask cryptography
+      shell: bash
+
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        python -m venv .venv
+        .\.venv\Scripts\pip install flask cryptography
+      shell: pwsh
 
     - name: Build
-      run: go build -v ./...
+      run: go build -v .
 
-    - name: Test
-      run: go test -v ./...
+    - name: Test application
+      run: pwsh -File test_curl.ps1 ./kemforge

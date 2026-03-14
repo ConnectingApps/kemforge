@@ -25,7 +25,11 @@ $totalTests = 0
 # Determine paths & ports
 # ---------------------------------------------------------------------------
 $scriptDir = $PSScriptRoot
-$venvPython = Join-Path $scriptDir ".venv/bin/python"
+if ($IsWindows) {
+    $venvPython = Join-Path $scriptDir ".venv\Scripts\python.exe"
+} else {
+    $venvPython = Join-Path $scriptDir ".venv/bin/python"
+}
 $testServer = Join-Path $scriptDir "test_server.py"
 $certFile = Join-Path $scriptDir "server.crt"
 $pubkeyFile = Join-Path $scriptDir "server_pub.pem"
@@ -885,8 +889,8 @@ try {
 $totalTests++
 Write-TestHeader "40. Reading Data from Stdin (-d @-)"
 # PowerShell pipe to curl
-$cmd = "echo 'data-from-stdin' | $CurlCmd -s -d @- $baseUrl/post"
-$stdout = bash -c $cmd
+$result = Invoke-CurlTest "-s -d @- $baseUrl/post" -Stdin "data-from-stdin"
+$stdout = $result.Stdout
 if ($stdout -match "data-from-stdin") {
     Write-Pass "Data correctly read from stdin."
 } else {
@@ -1112,9 +1116,9 @@ $serverKeyFile = Join-Path $scriptDir "server.key"
 
 # We'll use openssl to generate a client cert signed by server.crt
 try {
-    bash -c "openssl genrsa -out $clientKeyFile 2048 2>/dev/null"
-    bash -c "openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>/dev/null"
-    bash -c "openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>/dev/null"
+    & openssl genrsa -out $clientKeyFile 2048 2>$null
+    & openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>$null
+    & openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>$null
     
     if (Test-Path $clientCertFile) {
         $result = Invoke-CurlTest "-s -k --cert `"$clientCertFile`" --key `"$clientKeyFile`" $mtlsBaseUrl/mtls"
@@ -1154,7 +1158,7 @@ $untrustedCert = Join-Path $scriptDir "untrusted.crt"
 $untrustedKey = Join-Path $scriptDir "untrusted.key"
 try {
     # Generate a self-signed cert that the server doesn't trust
-    bash -c "openssl req -x509 -newkey rsa:2048 -keyout $untrustedKey -out $untrustedCert -days 1 -nodes -subj '/CN=untrusted' 2>/dev/null"
+    & openssl req -x509 -newkey rsa:2048 -keyout $untrustedKey -out $untrustedCert -days 1 -nodes -subj '/CN=untrusted' 2>$null
     $result = Invoke-CurlTest "-s -k --cert `"$untrustedCert`" --key `"$untrustedKey`" $mtlsBaseUrl/mtls" -ReturnStderr
     if ($result.ExitCode -ne 0 -or $result.Stderr -match "alert" -or $result.Stderr -match "SSL") {
         Write-Pass "mTLS correctly failed with untrusted certificate."
@@ -1175,7 +1179,7 @@ $expiredCert = Join-Path $scriptDir "expired.crt"
 try {
     # Generate an expired cert using python and cryptography
     $pythonCmd = "from cryptography import x509; from cryptography.hazmat.primitives import hashes, serialization; from cryptography.hazmat.primitives.asymmetric import rsa; import datetime; key = rsa.generate_private_key(65537, 2048); subject = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, 'expired')]); cert = x509.CertificateBuilder().subject_name(subject).issuer_name(subject).public_key(key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=2)).not_valid_after(datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).sign(key, hashes.SHA256()); print(cert.public_bytes(serialization.Encoding.PEM).decode()); print(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()).decode())"
-    bash -c "$venvPython -c `"$pythonCmd`" > $expiredCert"
+    & $venvPython -c $pythonCmd | Out-File -FilePath $expiredCert -NoNewline -Encoding ascii
     
     $result = Invoke-CurlTest "-s -k --cert `"$expiredCert`" $mtlsBaseUrl/mtls" -ReturnStderr
     if ($result.ExitCode -ne 0 -or $result.Stderr -match "alert" -or $result.Stderr -match "expired" -or $result.Stderr -match "SSL") {
@@ -1196,11 +1200,11 @@ $encKeyFile = Join-Path $scriptDir "enc_client.key"
 $password = "testpass"
 try {
     # Generate a client cert again
-    bash -c "openssl genrsa -out $clientKeyFile 2048 2>/dev/null"
+    & openssl genrsa -out $clientKeyFile 2048 2>$null
     # Encrypt the key
-    bash -c "openssl rsa -in $clientKeyFile -aes256 -passout pass:$password -out $encKeyFile -traditional 2>/dev/null"
-    bash -c "openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>/dev/null"
-    bash -c "openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>/dev/null"
+    & openssl rsa -in $clientKeyFile -aes256 -passout pass:$password -out $encKeyFile -traditional 2>$null
+    & openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>$null
+    & openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>$null
     
     if (Test-Path $clientCertFile) {
         $result = Invoke-CurlTest "-s -k --cert `"$clientCertFile`" --key `"$encKeyFile`" --pass `"$password`" $mtlsBaseUrl/mtls"
