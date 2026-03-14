@@ -27,7 +27,7 @@ cd /home/daan-acohen/repos/KemForge
 pwsh -File test_curl.ps1 curl
 ```
 
-This runs all 36 tests against the local Flask server using `curl`.
+This runs all tests against the local Flask server using `curl`.
 
 To test a different curl-like tool later, just swap the name:
 
