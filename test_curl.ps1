@@ -2260,6 +2260,31 @@ try {
 }
 
 # ----------------------------------------------------------------
+# Test 133: Fail on Server Error with Multiple URLs
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "133. Fail on Server Error with Multiple URLs"
+$result = Invoke-CurlTest "-s -f $baseUrl/status/404 $baseUrl/get"
+# Curl actually returns 0 if the LAST URL succeeds, despite previous HTTP failures with -f
+if ($result.ExitCode -eq 0 -and $result.Stdout -match "url.*get") {
+    Write-Pass "Fetched second URL despite first failing with -f, and exited with 0 (matching curl's behavior)."
+} else {
+    Write-Fail "Multiple URL -f failed. ExitCode: $($result.ExitCode), Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 134: Abort on First Error with --fail and --fail-early
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "134. Abort on First Error with --fail and --fail-early"
+$result = Invoke-CurlTest "-s -f --fail-early $baseUrl/status/404 $baseUrl/get"
+if ($result.ExitCode -eq 22 -and $result.Stdout -notmatch "url.*get") {
+    Write-Pass "Aborted immediately with --fail and --fail-early."
+} else {
+    Write-Fail "Abort with --fail-early failed. ExitCode: $($result.ExitCode), Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
 # Stop the local server and print summary
 # ----------------------------------------------------------------
 if (-not $serverProcess.HasExited) { $serverProcess.Kill() }

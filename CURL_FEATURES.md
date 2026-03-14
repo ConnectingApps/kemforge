@@ -1822,3 +1822,25 @@ curl -s -H "Accept: application/xml" http://127.0.0.1:8080/headers
 }
 ```
 (Only one Accept header should be present.)
+
+---
+
+### 133. Fail on Server Error with Multiple URLs
+**Description**: When fetching multiple URLs serially, `-f` (or `--fail`) will return 0 if the LAST URL succeeds, even if previous ones failed with an HTTP error. Subsequent URLs are still executed.
+**Input**:
+```bash
+curl -s -f http://127.0.0.1:8080/status/404 http://127.0.0.1:8080/get
+```
+**Output**:
+(The response from /get will be shown, and curl will exit with code 0.)
+
+---
+
+### 134. Abort on First Error with --fail and --fail-early
+**Description**: When fetching multiple URLs with both `-f` (or `--fail`) and `--fail-early`, curl will stop immediately on the first HTTP error.
+**Input**:
+```bash
+curl -s -f --fail-early http://127.0.0.1:8080/status/404 http://127.0.0.1:8080/get
+```
+**Output**:
+(No output, as it stops on the first error, and curl exits with code 22.)

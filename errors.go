@@ -10,14 +10,14 @@ import (
 	"strings"
 )
 
-// HandleRequestError inspects the error from client.Do() and exits
-// with the appropriate curl-compatible exit code (6 for DNS, 28 for timeout, 1 for other).
-func HandleRequestError(err error, req *http.Request, ctx context.Context, opts Options) {
+// HandleRequestError inspects the error from client.Do() and returns
+// the appropriate curl-compatible exit code (6 for DNS, 28 for timeout, 1 for other).
+func HandleRequestError(err error, req *http.Request, ctx context.Context, opts Options) int {
 	if ctx.Err() == context.DeadlineExceeded {
 		if !opts.Silent || opts.ShowErrors {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (28) Operation timed out\n")
 		}
-		os.Exit(28)
+		return 28
 	}
 	// Check for DNS errors
 	if dnsErr, ok := err.(*net.OpError); ok {
@@ -25,7 +25,7 @@ func HandleRequestError(err error, req *http.Request, ctx context.Context, opts 
 			if !opts.Silent || opts.ShowErrors {
 				_, _ = fmt.Fprintf(os.Stderr, "kemforge: (6) Could not resolve host: %s\n", req.URL.Hostname())
 			}
-			os.Exit(6)
+			return 6
 		}
 	}
 	// Check for URL error wrapping DNS
@@ -35,14 +35,14 @@ func HandleRequestError(err error, req *http.Request, ctx context.Context, opts 
 				if !opts.Silent || opts.ShowErrors {
 					_, _ = fmt.Fprintf(os.Stderr, "kemforge: (6) Could not resolve host: %s\n", req.URL.Hostname())
 				}
-				os.Exit(6)
+				return 6
 			}
 			// Connect timeout
 			if opErr.Timeout() {
 				if !opts.Silent || opts.ShowErrors {
 					_, _ = fmt.Fprintf(os.Stderr, "kemforge: (28) Connection timed out\n")
 				}
-				os.Exit(28)
+				return 28
 			}
 		}
 		// General timeout
@@ -50,29 +50,29 @@ func HandleRequestError(err error, req *http.Request, ctx context.Context, opts 
 			if !opts.Silent || opts.ShowErrors {
 				_, _ = fmt.Fprintf(os.Stderr, "kemforge: (28) Operation timed out\n")
 			}
-			os.Exit(28)
+			return 28
 		}
 	}
 	if strings.Contains(err.Error(), "redirects followed") {
 		if !opts.Silent || opts.ShowErrors {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: %v\n", err)
 		}
-		os.Exit(47)
+		return 47
 	}
 	if strings.Contains(err.Error(), "connection refused") {
 		if !opts.Silent || opts.ShowErrors {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (7) Failed to connect to %s port %s: Connection refused\n", req.URL.Hostname(), req.URL.Port())
 		}
-		os.Exit(7)
+		return 7
 	}
 	if strings.Contains(strings.ToLower(err.Error()), "tls") || strings.Contains(strings.ToLower(err.Error()), "certificate") {
 		if !opts.Silent || opts.ShowErrors {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (60) SSL certificate problem: %v\n", err)
 		}
-		os.Exit(60)
+		return 60
 	}
 	if !opts.Silent || opts.ShowErrors {
 		_, _ = fmt.Fprintf(os.Stderr, "kemforge: %v\n", err)
 	}
-	os.Exit(1)
+	return 1
 }

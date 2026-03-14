@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -19,6 +20,7 @@ func main() {
 	}
 
 	allOpts := ParseArgs(args)
+	var globalExitCode atomic.Int32
 
 	for _, opts := range allOpts {
 		if opts.ShowHelp {
@@ -62,14 +64,18 @@ func main() {
 							currentOpts.OutputFile = ""
 						}
 					}
-					success := executeRequest(currentOpts, client, jar, targetURL)
-					if !success && opts.FailEarly {
-						os.Exit(1)
+					exitCode := executeRequest(currentOpts, client, jar, targetURL)
+					if exitCode != 0 {
+						globalExitCode.Store(int32(exitCode))
+						if opts.FailEarly {
+							os.Exit(exitCode)
+						}
 					}
 				})
 			}
 			wg.Wait()
 		} else {
+			var lastExitCode int
 			for i, targetURL := range opts.TargetURLs {
 				currentOpts := opts
 				if i < len(opts.OutputFiles) {
@@ -77,16 +83,18 @@ func main() {
 				} else if len(opts.OutputFiles) > 0 {
 					currentOpts.OutputFile = ""
 				}
-				success := executeRequest(currentOpts, client, jar, targetURL)
-				if !success && opts.FailEarly {
-					os.Exit(1)
+				lastExitCode = executeRequest(currentOpts, client, jar, targetURL)
+				if lastExitCode != 0 && opts.FailEarly {
+					os.Exit(lastExitCode)
 				}
 			}
+			globalExitCode.Store(int32(lastExitCode))
 		}
 	}
+	os.Exit(int(globalExitCode.Load()))
 }
 
-func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, targetURL string) bool {
+func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, targetURL string) int {
 	startTime := time.Now()
 	req := NewHTTPRequest(opts, targetURL)
 
@@ -153,14 +161,16 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 	}
 
 	if err != nil {
-		HandleRequestError(err, req, ctx, opts)
-		return false
+		return HandleRequestError(err, req, ctx, opts)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	// Fail on server error
 	if opts.FailOnError && resp.StatusCode >= 400 {
-		os.Exit(22)
+		if !opts.Silent || opts.ShowErrors {
+			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (22) The requested URL returned error: %d\n", resp.StatusCode)
+		}
+		return 22
 	}
 
 	// Verbose: print response headers and TLS info
@@ -193,5 +203,5 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 	}
 
 	WriteResponse(resp, req, opts, startTime)
-	return true
+	return 0
 }
