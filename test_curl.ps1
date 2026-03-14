@@ -167,7 +167,8 @@ try {
     if ($IsLinux) {
         pkill -f "test_server.py"
     } else {
-        Get-Process | Where-Object { $_.CommandLine -match "test_server.py" } | Stop-Process -Force -ErrorAction SilentlyContinue
+        # Using Get-CimInstance to check CommandLine which is more reliable on Windows
+        Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -match "test_server.py" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
     }
     # Delete old certs to ensure they are regenerated with correct CA/Usage flags
     if (Test-Path $certFile) { Remove-Item $certFile }
@@ -180,9 +181,9 @@ try {
 
 $serverPsi = New-Object System.Diagnostics.ProcessStartInfo
 $serverPsi.FileName = $venvPython
-$serverPsi.Arguments = "$testServer --port $httpPort --https-port $httpsPort --mtls-port $mtlsPort --proxy-port $proxyPort"
-$serverPsi.RedirectStandardOutput = $true
-$serverPsi.RedirectStandardError = $true
+$serverPsi.Arguments = "`"$testServer`" --port $httpPort --https-port $httpsPort --mtls-port $mtlsPort --proxy-port $proxyPort"
+$serverPsi.RedirectStandardOutput = $false
+$serverPsi.RedirectStandardError = $false
 $serverPsi.UseShellExecute = $false
 $serverPsi.CreateNoWindow = $true
 

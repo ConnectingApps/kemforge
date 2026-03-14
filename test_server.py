@@ -519,10 +519,10 @@ def proxy_handler():
 
 def run_connect_proxy(port):
     """A minimal TCP-level CONNECT proxy for tunneling."""
-    server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        server.bind(("::", port))
+        server.bind(("127.0.0.1", port))
     except Exception as e:
         print(f"CONNECT proxy bind failed: {e}")
         return
@@ -577,7 +577,7 @@ def run_https(port):
     key_path = "server.key"
     if not os.path.exists(cert_path) or not os.path.exists(key_path):
         generate_cert(cert_path, key_path)
-    app.run(host="::", port=port, ssl_context=(cert_path, key_path), use_reloader=False)
+    app.run(host="127.0.0.1", port=port, ssl_context=(cert_path, key_path), use_reloader=False)
 
 
 def run_mtls(port):
@@ -594,7 +594,7 @@ def run_mtls(port):
     context.load_verify_locations(cafile=cert_path)
     context.verify_mode = ssl.CERT_REQUIRED
     
-    app.run(host="::", port=port, ssl_context=context, use_reloader=False)
+    app.run(host="127.0.0.1", port=port, ssl_context=context, use_reloader=False)
 
 
 if __name__ == "__main__":
@@ -624,4 +624,4 @@ if __name__ == "__main__":
     proxy_thread.start()
 
     # Start HTTP server (foreground)
-    app.run(host="::", port=args.port, use_reloader=False)
+    app.run(host="127.0.0.1", port=args.port, use_reloader=False)
