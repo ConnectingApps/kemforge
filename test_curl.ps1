@@ -41,6 +41,12 @@ $baseUrl = "http://127.0.0.1:$httpPort"
 $httpsBaseUrl = "https://127.0.0.1:$httpsPort"
 $mtlsBaseUrl = "https://127.0.0.1:$mtlsPort"
 
+# Check for openssl availability
+$hasOpenSSL = $null -ne (Get-Command openssl -ErrorAction SilentlyContinue)
+if (-not $hasOpenSSL) {
+    Write-Host "  [WARN] openssl not found in PATH. Using Python as fallback for some tests." -ForegroundColor Yellow
+}
+
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
@@ -1117,9 +1123,14 @@ $serverKeyFile = Join-Path $scriptDir "server.key"
 
 # We'll use openssl to generate a client cert signed by server.crt
 try {
-    & openssl genrsa -out $clientKeyFile 2048 2>$null
-    & openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>$null
-    & openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>$null
+    if ($hasOpenSSL) {
+        & openssl genrsa -out $clientKeyFile 2048 2>$null
+        & openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>$null
+        & openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>$null
+    } else {
+        $pythonCmd = "from cryptography import x509; from cryptography.hazmat.primitives import hashes, serialization; from cryptography.hazmat.primitives.asymmetric import rsa; import datetime; s_cert = x509.load_pem_x509_certificate(open('$serverCertFile','rb').read()); s_key = serialization.load_pem_private_key(open('$serverKeyFile','rb').read(), None); c_key = rsa.generate_private_key(65537, 2048); sub = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, 'localhost')]); c_cert = x509.CertificateBuilder().subject_name(sub).issuer_name(s_cert.subject).public_key(c_key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(datetime.datetime.now(datetime.timezone.utc)).not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).sign(s_key, hashes.SHA256()); open('$clientCertFile','wb').write(c_cert.public_bytes(serialization.Encoding.PEM)); open('$clientKeyFile','wb').write(c_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))"
+        & $venvPython -c $pythonCmd
+    }
     
     if (Test-Path $clientCertFile) {
         $result = Invoke-CurlTest "-s -k --cert `"$clientCertFile`" --key `"$clientKeyFile`" $mtlsBaseUrl/mtls"
@@ -1159,7 +1170,12 @@ $untrustedCert = Join-Path $scriptDir "untrusted.crt"
 $untrustedKey = Join-Path $scriptDir "untrusted.key"
 try {
     # Generate a self-signed cert that the server doesn't trust
-    & openssl req -x509 -newkey rsa:2048 -keyout $untrustedKey -out $untrustedCert -days 1 -nodes -subj '/CN=untrusted' 2>$null
+    if ($hasOpenSSL) {
+        & openssl req -x509 -newkey rsa:2048 -keyout $untrustedKey -out $untrustedCert -days 1 -nodes -subj '/CN=untrusted' 2>$null
+    } else {
+        $pythonCmd = "from cryptography import x509; from cryptography.hazmat.primitives import hashes, serialization; from cryptography.hazmat.primitives.asymmetric import rsa; import datetime; key = rsa.generate_private_key(65537, 2048); sub = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, 'untrusted')]); cert = x509.CertificateBuilder().subject_name(sub).issuer_name(sub).public_key(key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(datetime.datetime.now(datetime.timezone.utc)).not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).sign(key, hashes.SHA256()); open('$untrustedCert','wb').write(cert.public_bytes(serialization.Encoding.PEM)); open('$untrustedKey','wb').write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))"
+        & $venvPython -c $pythonCmd
+    }
     $result = Invoke-CurlTest "-s -k --cert `"$untrustedCert`" --key `"$untrustedKey`" $mtlsBaseUrl/mtls" -ReturnStderr
     if ($result.ExitCode -ne 0 -or $result.Stderr -match "alert" -or $result.Stderr -match "SSL") {
         Write-Pass "mTLS correctly failed with untrusted certificate."
@@ -1201,11 +1217,16 @@ $encKeyFile = Join-Path $scriptDir "enc_client.key"
 $password = "testpass"
 try {
     # Generate a client cert again
-    & openssl genrsa -out $clientKeyFile 2048 2>$null
-    # Encrypt the key
-    & openssl rsa -in $clientKeyFile -aes256 -passout pass:$password -out $encKeyFile -traditional 2>$null
-    & openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>$null
-    & openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>$null
+    if ($hasOpenSSL) {
+        & openssl genrsa -out $clientKeyFile 2048 2>$null
+        # Encrypt the key
+        & openssl rsa -in $clientKeyFile -aes256 -passout pass:$password -out $encKeyFile -traditional 2>$null
+        & openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>$null
+        & openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>$null
+    } else {
+        $pythonCmd = "from cryptography import x509; from cryptography.hazmat.primitives import hashes, serialization; from cryptography.hazmat.primitives.asymmetric import rsa; import datetime; s_cert = x509.load_pem_x509_certificate(open('$serverCertFile','rb').read()); s_key = serialization.load_pem_private_key(open('$serverKeyFile','rb').read(), None); c_key = rsa.generate_private_key(65537, 2048); sub = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, 'localhost')]); c_cert = x509.CertificateBuilder().subject_name(sub).issuer_name(s_cert.subject).public_key(c_key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(datetime.datetime.now(datetime.timezone.utc)).not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1)).sign(s_key, hashes.SHA256()); open('$clientCertFile','wb').write(c_cert.public_bytes(serialization.Encoding.PEM)); open('$encKeyFile','wb').write(c_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.BestAvailableEncryption(b'$password')))"
+        & $venvPython -c $pythonCmd
+    }
     
     if (Test-Path $clientCertFile) {
         $result = Invoke-CurlTest "-s -k --cert `"$clientCertFile`" --key `"$encKeyFile`" --pass `"$password`" $mtlsBaseUrl/mtls"
@@ -2127,7 +2148,12 @@ $totalTests++
 Write-TestHeader "115. --pinnedpubkey (Success case - File)"
 # Extract public key from cert for curl compatibility
 if (-not (Test-Path $pubkeyFile)) {
-    & openssl x509 -in $certFile -pubkey -noout | Out-File -FilePath $pubkeyFile -Encoding ascii
+    if ($hasOpenSSL) {
+        & openssl x509 -in $certFile -pubkey -noout | Out-File -FilePath $pubkeyFile -Encoding ascii
+    } else {
+        $pythonCmd = "from cryptography import x509; from cryptography.hazmat.primitives import serialization; cert = x509.load_pem_x509_certificate(open('$certFile','rb').read()); print(cert.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode())"
+        & $venvPython -c $pythonCmd | Out-File -FilePath $pubkeyFile -NoNewline -Encoding ascii
+    }
 }
 $result = Invoke-CurlTest "-s -k --pinnedpubkey `"$pubkeyFile`" $httpsBaseUrl/get"
 if ($result.ExitCode -eq 0) {
@@ -2141,9 +2167,14 @@ if ($result.ExitCode -eq 0) {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "115a. --pinnedpubkey (Success case - Hash)"
-# Extract public key hash from cert using openssl
+# Extract public key hash from cert using openssl or python
 # Note: we need the DER representation of the PUBLIC KEY, not the certificate or PEM.
-$hash = & openssl x509 -in $certFile -pubkey -noout | openssl pkey -pubin -outform DER | openssl dgst -sha256 -binary | openssl enc -base64
+if ($hasOpenSSL) {
+    $hash = & openssl x509 -in $certFile -pubkey -noout | openssl pkey -pubin -outform DER | openssl dgst -sha256 -binary | openssl enc -base64
+} else {
+    $pythonCmd = "from cryptography import x509; from cryptography.hazmat.primitives import hashes, serialization; import base64; cert = x509.load_pem_x509_certificate(open('$certFile','rb').read()); pubkey_der = cert.public_key().public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo); digest = hashes.Hash(hashes.SHA256()); digest.update(pubkey_der); hash_bytes = digest.finalize(); print(base64.b64encode(hash_bytes).decode())"
+    $hash = & $venvPython -c $pythonCmd
+}
 $pinnedHash = "sha256//$($hash.Trim())"
 $result = Invoke-CurlTest "-s -k --pinnedpubkey `"$pinnedHash`" $httpsBaseUrl/get"
 if ($result.ExitCode -eq 0) {
@@ -2160,7 +2191,12 @@ Write-TestHeader "115b. --pinnedpubkey (Failure case - Mismatch)"
 $wrongPubkeyFile = Join-Path $scriptDir "wrong_pubkey.pem"
 try {
     # Generate a dummy public key that won't match
-    $null = & openssl genrsa 2048 | openssl rsa -pubout | Out-File -FilePath $wrongPubkeyFile -Encoding ascii
+    if ($hasOpenSSL) {
+        $null = & openssl genrsa 2048 | openssl rsa -pubout | Out-File -FilePath $wrongPubkeyFile -Encoding ascii
+    } else {
+        $pythonCmd = "from cryptography.hazmat.primitives.asymmetric import rsa; from cryptography.hazmat.primitives import serialization; key = rsa.generate_private_key(65537, 2048); print(key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo).decode())"
+        & $venvPython -c $pythonCmd | Out-File -FilePath $wrongPubkeyFile -NoNewline -Encoding ascii
+    }
     $result = Invoke-CurlTest "-s -k --pinnedpubkey `"$wrongPubkeyFile`" $httpsBaseUrl/get"
     if ($result.ExitCode -ne 0) {
         Write-Pass "--pinnedpubkey correctly failed on public key mismatch."

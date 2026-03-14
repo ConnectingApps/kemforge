@@ -119,6 +119,14 @@ def generate_cert(cert_path, key_path):
             format=serialization.PrivateFormat.TraditionalOpenSSL,
             encryption_algorithm=serialization.NoEncryption(),
         ))
+    
+    # Also generate server_pub.pem for pinnedpubkey tests
+    pubkey_path = os.path.join(os.path.dirname(cert_path), "server_pub.pem")
+    with open(pubkey_path, "wb") as f:
+        f.write(cert.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        ))
 
 
 # ---------------------------------------------------------------------------
@@ -518,73 +526,95 @@ def proxy_handler():
 # ---------------------------------------------------------------------------
 
 def run_connect_proxy(port):
-    """A minimal TCP-level CONNECT proxy for tunneling."""
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    try:
-        server.bind(("127.0.0.1", port))
-    except Exception as e:
-        print(f"CONNECT proxy bind failed: {e}")
-        return
-    server.listen(5)
-    while True:
-        client, _ = server.accept()
-        def tunnel(c):
-            remote = None
+    """A minimal TCP-level CONNECT proxy for tunneling that listens on both IPv4 and IPv6."""
+    def run_on_addr(addr, family):
+        server = socket.socket(family, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if family == socket.AF_INET6:
             try:
-                data = c.recv(4096)
-                if data.startswith(b"CONNECT"):
-                    # Format: CONNECT target:port HTTP/1.1
-                    parts = data.split(b" ")
-                    if len(parts) > 1:
-                        target = parts[1].decode().split(":")
-                        host = target[0]
-                        port_num = int(target[1])
-                        remote = socket.create_connection((host, port_num))
-                        c.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-                        def forward(src, dst):
-                            try:
-                                while True:
-                                    d = src.recv(4096)
-                                    if not d: break
-                                    dst.sendall(d)
-                            except: pass
-                            finally:
-                                try: src.close()
+                server.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 1)
+            except: pass
+        try:
+            server.bind((addr, port))
+        except Exception as e:
+            print(f"CONNECT proxy bind failed on {addr}:{port}: {e}")
+            return
+        server.listen(5)
+        while True:
+            client, _ = server.accept()
+            def tunnel(c):
+                remote = None
+                try:
+                    data = c.recv(4096)
+                    if data.startswith(b"CONNECT"):
+                        parts = data.split(b" ")
+                        if len(parts) > 1:
+                            target = parts[1].decode().split(":")
+                            host = target[0]
+                            port_num = int(target[1])
+                            remote = socket.create_connection((host, port_num))
+                            c.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                            def forward(src, dst):
+                                try:
+                                    while True:
+                                        d = src.recv(4096)
+                                        if not d: break
+                                        dst.sendall(d)
                                 except: pass
-                                try: dst.close()
-                                except: pass
-                        t1 = threading.Thread(target=forward, args=(c, remote), daemon=True)
-                        t2 = threading.Thread(target=forward, args=(remote, c), daemon=True)
-                        t1.start()
-                        t2.start()
-                        # No join needed as we want them to run in parallel and they will close each other
-                else:
-                    c.close()
-            except:
-                if c: c.close()
-                if remote: remote.close()
-        threading.Thread(target=tunnel, args=(client,), daemon=True).start()
+                                finally:
+                                    try: src.close()
+                                    except: pass
+                                    try: dst.close()
+                                    except: pass
+                            t1 = threading.Thread(target=forward, args=(c, remote), daemon=True)
+                            t2 = threading.Thread(target=forward, args=(remote, c), daemon=True)
+                            t1.start()
+                            t2.start()
+                    else:
+                        c.close()
+                except:
+                    if c: c.close()
+                    if remote: remote.close()
+            threading.Thread(target=tunnel, args=(client,), daemon=True).start()
+
+    threading.Thread(target=run_on_addr, args=("127.0.0.1", socket.AF_INET), daemon=True).start()
+    run_on_addr("::1", socket.AF_INET6)
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
+def run_dual_stack(port, ssl_context=None):
+    """Run Flask on both 127.0.0.1 and ::1."""
+    # We use a separate thread for one of them since app.run is blocking.
+    # Flask/Werkzeug doesn't natively support dual-stack bind in a single call easily.
+    def run_v6():
+        try:
+            app.run(host="::1", port=port, ssl_context=ssl_context, use_reloader=False)
+        except Exception as e:
+            print(f"Failed to start IPv6 server on [::1]:{port}: {e}")
+
+    threading.Thread(target=run_v6, daemon=True).start()
+    app.run(host="127.0.0.1", port=port, ssl_context=ssl_context, use_reloader=False)
+
+
 def run_https(port):
     """Run a second Flask instance with a self-signed certificate."""
     cert_path = "server.crt"
     key_path = "server.key"
-    if not os.path.exists(cert_path) or not os.path.exists(key_path):
+    pubkey_path = "server_pub.pem"
+    if not os.path.exists(cert_path) or not os.path.exists(key_path) or not os.path.exists(pubkey_path):
         generate_cert(cert_path, key_path)
-    app.run(host="127.0.0.1", port=port, ssl_context=(cert_path, key_path), use_reloader=False)
+    run_dual_stack(port, ssl_context=(cert_path, key_path))
 
 
 def run_mtls(port):
     """Run a third Flask instance with mTLS enabled."""
     cert_path = "server.crt"
     key_path = "server.key"
-    if not os.path.exists(cert_path) or not os.path.exists(key_path):
+    pubkey_path = "server_pub.pem"
+    if not os.path.exists(cert_path) or not os.path.exists(key_path) or not os.path.exists(pubkey_path):
         generate_cert(cert_path, key_path)
     
     # Create SSL context that REQUIRES a client certificate
@@ -594,7 +624,7 @@ def run_mtls(port):
     context.load_verify_locations(cafile=cert_path)
     context.verify_mode = ssl.CERT_REQUIRED
     
-    app.run(host="127.0.0.1", port=port, ssl_context=context, use_reloader=False)
+    run_dual_stack(port, ssl_context=context)
 
 
 if __name__ == "__main__":
@@ -608,7 +638,8 @@ if __name__ == "__main__":
     # Generate certificates once before starting threads
     cert_path = "server.crt"
     key_path = "server.key"
-    if not os.path.exists(cert_path) or not os.path.exists(key_path):
+    pubkey_path = "server_pub.pem"
+    if not os.path.exists(cert_path) or not os.path.exists(key_path) or not os.path.exists(pubkey_path):
         generate_cert(cert_path, key_path)
 
     # Start HTTPS server in a background thread
@@ -623,5 +654,5 @@ if __name__ == "__main__":
     proxy_thread = threading.Thread(target=run_connect_proxy, args=(args.proxy_port,), daemon=True)
     proxy_thread.start()
 
-    # Start HTTP server (foreground)
-    app.run(host="127.0.0.1", port=args.port, use_reloader=False)
+    # Start HTTP server (foreground) on both stacks
+    run_dual_stack(args.port)
