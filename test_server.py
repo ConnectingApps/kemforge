@@ -23,7 +23,7 @@ import datetime
 import ipaddress
 from flask import Flask, request, jsonify, redirect, make_response, Response
 from cryptography import x509
-from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -102,7 +102,7 @@ def generate_cert(cert_path, key_path):
         ),
         critical=True,
     ).add_extension(
-        x509.ExtendedKeyUsage([x509.OID_SERVER_AUTH]),
+        x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]),
         critical=False,
     ).sign(key, hashes.SHA256())
 
