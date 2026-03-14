@@ -35,6 +35,13 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            binary: ./kemforge
+            pip: .venv/bin/pip
+          - os: windows-latest
+            binary: ./kemforge.exe
+            pip: .\.venv\Scripts\pip
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v5
@@ -49,27 +56,17 @@ jobs:
       with:
         python-version: '3.12'
 
-    - name: Install dependencies (Linux)
-      if: runner.os == 'Linux'
+    - name: Install dependencies
       run: |
         python -m venv .venv
-        .venv/bin/pip install flask cryptography
-      shell: bash
-
-    - name: Install dependencies (Windows)
-      if: runner.os == 'Windows'
-      run: |
-        python -m venv .venv
-        .\.venv\Scripts\pip install flask cryptography
+        ${{ matrix.pip }} install flask cryptography
       shell: pwsh
 
     - name: Build
       run: go build -v .
 
-    - name: Test application (Linux)
-      if: runner.os == 'Linux'
-      run: pwsh -File test_curl.ps1 ./kemforge
+    - name: Test application
+      run: pwsh -File test_curl.ps1 ${{ matrix.binary }}
 
-    - name: Test application (Windows)
-      if: runner.os == 'Windows'
-      run: pwsh -File test_curl.ps1 ./kemforge.exe
+    - name: Run application
+      run: ${{ matrix.binary }} -I https://www.google.com
