@@ -31,7 +31,9 @@ func HandleRequestError(err error, req *http.Request, ctx context.Context, opts 
 	}
 
 	// Check for Connection Refused (platform-agnostic via syscall.ECONNREFUSED)
-	if errors.Is(err, syscall.ECONNREFUSED) {
+	if errors.Is(err, syscall.ECONNREFUSED) ||
+		strings.Contains(err.Error(), "connection refused") ||
+		strings.Contains(err.Error(), "actively refused it") {
 		if !opts.Silent || opts.ShowErrors {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (7) Failed to connect to %s port %s: Connection refused\n", req.URL.Hostname(), req.URL.Port())
 		}

@@ -145,7 +145,8 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 		}
 
 		// Check for retry on network errors
-		isConnRefused := strings.Contains(err.Error(), "connection refused")
+		isConnRefused := strings.Contains(err.Error(), "connection refused") ||
+			strings.Contains(err.Error(), "actively refused it")
 		shouldRetry := opts.RetryAllErrors || (isConnRefused && opts.RetryConnRefused) || (!isConnRefused && opts.RetryCount > 0)
 
 		if opts.RetryCount > 0 && attempts < opts.RetryCount && shouldRetry {
