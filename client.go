@@ -241,11 +241,10 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 	if opts.MaxTime > 0 {
 		client.Timeout = time.Duration(opts.MaxTime * float64(time.Second))
-	} else if !opts.Parallel {
-		// Set a default global timeout to avoid indefinite hangs in tests,
-		// but only if not in parallel mode (where many URLs might be slow).
-		// Actually, let's just set a generous 120s timeout.
-		client.Timeout = 120 * time.Second
+	} else if defTimeout := os.Getenv("KEMFORGE_DEFAULT_TIMEOUT"); defTimeout != "" {
+		if d, err := time.ParseDuration(defTimeout); err == nil {
+			client.Timeout = d
+		}
 	}
 
 	// Follow redirects or not

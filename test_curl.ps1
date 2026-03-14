@@ -11,6 +11,9 @@ param(
     [string]$CurlCmd
 )
 
+# Set a default timeout for Kemforge to avoid hangs during tests
+$env:KEMFORGE_DEFAULT_TIMEOUT = "120s"
+
 $ErrorActionPreference = "Continue"
 
 $passed = 0
