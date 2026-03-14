@@ -174,28 +174,31 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 		return 22
 	}
 
-	// Verbose: print response headers and TLS info
+	// Verbose: print response headers
 	if opts.Verbose {
 		LogVerboseResponse(resp)
-		// Print TLS information if available
-		if resp.TLS != nil {
-			tlsVersion := "unknown"
-			switch resp.TLS.Version {
-			case tls.VersionTLS10:
-				tlsVersion = "1.0"
-			case tls.VersionTLS11:
-				tlsVersion = "1.1"
-			case tls.VersionTLS12:
-				tlsVersion = "1.2"
-			case tls.VersionTLS13:
-				tlsVersion = "1.3"
-			}
-			_, _ = fmt.Fprintf(os.Stderr, "* TLS DATA:\n")
-			_, _ = fmt.Fprintf(os.Stderr, "* TlsVersion: %s\n", tlsVersion)
-			_, _ = fmt.Fprintf(os.Stderr, "* Cipher:\t%s\n", tls.CipherSuiteName(resp.TLS.CipherSuite))
-			_, _ = fmt.Fprintf(os.Stderr, "* KeyExchangeGroup: %s\n", resp.TLS.CurveID.String())
-			_, _ = fmt.Fprintf(os.Stderr, "* \n")
+	}
+
+	// Print TLS information if available
+	if resp.TLS != nil {
+		tlsVersion := "unknown"
+		switch resp.TLS.Version {
+		case tls.VersionTLS10:
+			tlsVersion = "1.0"
+		case tls.VersionTLS11:
+			tlsVersion = "1.1"
+		case tls.VersionTLS12:
+			tlsVersion = "1.2"
+		case tls.VersionTLS13:
+			tlsVersion = "1.3"
 		}
+		const colorYellow = "\033[33m"
+		const colorReset = "\033[0m"
+		_, _ = fmt.Fprintf(os.Stderr, "%s* TLS DATA:\n", colorYellow)
+		_, _ = fmt.Fprintf(os.Stderr, "* TlsVersion: %s\n", tlsVersion)
+		_, _ = fmt.Fprintf(os.Stderr, "* Cipher:\t%s\n", tls.CipherSuiteName(resp.TLS.CipherSuite))
+		_, _ = fmt.Fprintf(os.Stderr, "* KeyExchangeGroup: %s\n", resp.TLS.CurveID.String())
+		_, _ = fmt.Fprintf(os.Stderr, "* %s\n", colorReset)
 	}
 
 	// Save cookies if -c specified
