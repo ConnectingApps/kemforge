@@ -117,8 +117,9 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 	for {
 		resp, err = client.Do(req)
 		if err == nil {
-			// Check for retry on 5xx or all errors if --retry-all-errors
-			shouldRetry := (resp.StatusCode >= 500) || opts.RetryAllErrors
+			// Check for retry on 5xx, 408, 429 or all errors (>= 400) if --retry-all-errors
+			isTransient := (resp.StatusCode >= 500) || (resp.StatusCode == 408) || (resp.StatusCode == 429)
+			shouldRetry := isTransient || (opts.RetryAllErrors && resp.StatusCode >= 400)
 			if opts.RetryCount > 0 && attempts < opts.RetryCount && shouldRetry {
 				attempts++
 				if !opts.Silent {

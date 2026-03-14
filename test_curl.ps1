@@ -1789,6 +1789,21 @@ if ($duration -ge 1) {
 }
 
 # ----------------------------------------------------------------
+# Test 102b: --retry-all-errors should NOT retry on success
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "102b. --retry-all-errors should NOT retry on success"
+$start = Get-Date
+$result = Invoke-CurlTest "-s --retry 1 --retry-all-errors --retry-delay 1 $baseUrl/get"
+$end = Get-Date
+$duration = ($end - $start).TotalSeconds
+if ($duration -lt 0.8) {
+    Write-Pass "--retry-all-errors did NOT retry on success (200 OK)."
+} else {
+    Write-Fail "--retry-all-errors unnecessarily retried on success (duration: $duration s)."
+}
+
+# ----------------------------------------------------------------
 # Test 103: --fail-early
 # ----------------------------------------------------------------
 $totalTests++
