@@ -55,6 +55,7 @@ type Options struct {
 	TargetURLs    []string
 	CertFile      string // --cert
 	KeyFile       string // --key
+	Pass          string // --pass
 	DigestAuth    bool   // --digest
 	NetrcFile     string // --netrc-file
 	UnixSocket    string // --unix-socket
@@ -272,15 +273,26 @@ func ParseArgs(args []string) []Options {
 			if i < len(args) {
 				opts.NoProxy = args[i]
 			}
-		case a == "--cert":
+		case a == "-E" || a == "--cert":
 			i++
 			if i < len(args) {
 				opts.CertFile = args[i]
+				// Check for certificate:password
+				if strings.Contains(opts.CertFile, ":") && !strings.HasPrefix(opts.CertFile, "./") && !strings.HasPrefix(opts.CertFile, "/") {
+					parts := strings.SplitN(opts.CertFile, ":", 2)
+					opts.CertFile = parts[0]
+					opts.Pass = parts[1]
+				}
 			}
 		case a == "--key":
 			i++
 			if i < len(args) {
 				opts.KeyFile = args[i]
+			}
+		case a == "--pass":
+			i++
+			if i < len(args) {
+				opts.Pass = args[i]
 			}
 		case a == "--digest":
 			opts.DigestAuth = true

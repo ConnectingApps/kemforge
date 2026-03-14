@@ -1195,7 +1195,7 @@ try {
     # Generate a client cert again
     bash -c "openssl genrsa -out $clientKeyFile 2048 2>/dev/null"
     # Encrypt the key
-    bash -c "openssl rsa -in $clientKeyFile -aes256 -passout pass:$password -out $encKeyFile 2>/dev/null"
+    bash -c "openssl rsa -in $clientKeyFile -aes256 -passout pass:$password -out $encKeyFile -traditional 2>/dev/null"
     bash -c "openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>/dev/null"
     bash -c "openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>/dev/null"
     

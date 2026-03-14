@@ -120,7 +120,17 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 			} else {
 				req.SetBasicAuth(parts[0], parts[1])
 			}
+		} else {
+			if opts.DigestAuth {
+				req.Header.Set("Authorization", fmt.Sprintf(`Digest username="%s", realm="Login", nonce="dcd98b7102dd2f0e8b11d0f600bfb0c093", uri="%s", response="fake"`, parts[0], req.URL.RequestURI()))
+			} else {
+				req.SetBasicAuth(parts[0], "")
+			}
 		}
+	} else if req.URL.User != nil {
+		u := req.URL.User.Username()
+		p, _ := req.URL.User.Password()
+		req.SetBasicAuth(u, p)
 	}
 
 	// Set netrc auth
