@@ -897,10 +897,59 @@ curl -s -b "" httpbin.org/cookies/set/tmp/val httpbin.org/cookies
 ---
 
 ## 55. Mutual TLS (Client Certificates)
-**Description**: Presents a client-side certificate for authentication using the `--cert` and `--key` flags.
+**Description**: Presents a client-side certificate for authentication using the `--cert` and `--key` flags. The server validates the client certificate against its trust store.
 **Input**:
 ```bash
-curl -s --cert client.crt --key client.key -k https://127.0.0.1:8443/mtls
+curl -s --cert client.crt --key client.key -k https://127.0.0.1:8444/mtls
+```
+**Output**:
+```json
+{
+  "authenticated": true,
+  "certificate": "client.crt"
+}
+```
+
+---
+
+## 55.1. Negative mTLS - No Certificate
+**Description**: Verifies that the server rejects requests that do not provide a client certificate when mTLS is required.
+**Input**:
+```bash
+curl -s -k https://127.0.0.1:8444/mtls
+```
+**Output**:
+(Error: SSL handshake fails or connection closed by server)
+
+---
+
+## 55.2. Negative mTLS - Untrusted Certificate
+**Description**: Verifies that the server rejects requests with a client certificate that is not signed by a trusted CA.
+**Input**:
+```bash
+curl -s -k --cert untrusted.crt --key untrusted.key https://127.0.0.1:8444/mtls
+```
+**Output**:
+(Error: SSL alert unknown CA)
+
+---
+
+## 55.3. Negative mTLS - Expired Certificate
+**Description**: Verifies that the server rejects requests with an expired client certificate.
+**Input**:
+```bash
+curl -s -k --cert expired.crt https://127.0.0.1:8444/mtls
+```
+**Output**:
+(Error: SSL alert expired certificate or handshake failure)
+
+---
+
+## 55.4. mTLS with Encrypted Private Key
+**Description**: Supports providing a passphrase for an encrypted private key using the `--pass` flag.
+**Input**:
+```bash
+curl -s -k --cert client.crt --key enc_client.key --pass "password" https://127.0.0.1:8444/mtls
 ```
 **Output**:
 ```json
@@ -1468,6 +1517,17 @@ curl -s --retry 1 --retry-all-errors http://127.0.0.1:8080/status/404
 
 ---
 
+### 102b. --retry-all-errors should NOT retry on success
+**Description**: Verifying that `--retry-all-errors` does not retry when the request succeeds (200 OK).
+**Input**:
+```bash
+curl -s --retry 1 --retry-all-errors --retry-delay 1 http://127.0.0.1:8080/get
+```
+**Output**:
+(Success, no retry delay observed, exits immediately.)
+
+---
+
 ### 103. Abort on First Error (`--fail-early`)
 **Description**: Stops the entire operation on the first error when multiple URLs are provided.
 **Input**:
@@ -1601,20 +1661,42 @@ curl -s --cacert server.crt https://127.0.0.1:8443/get
 
 ---
 
-### 115. Pinned Public Key Verification (`--pinnedpubkey`)
-**Description**: Verifies the server's public key against a provided hash or file. Supports PEM/DER public keys and base64 encoded SHA256 hashes. (Note: for file pinning, `curl` typically requires a public key file, not a certificate).
-**Input (File)**:
+### 115. --pinnedpubkey (Success case - File)
+**Description**: Verifying SSL connection by pinning the public key file using `--pinnedpubkey`.
+**Input**:
 ```bash
-# Extract public key from certificate first
+# Extract public key from cert for curl compatibility
 openssl x509 -in server.crt -pubkey -noout > server_pub.pem
 curl -s -k --pinnedpubkey server_pub.pem https://127.0.0.1:8443/get
 ```
-**Input (Hash)**:
+**Output**:
+(Successful connection if the server's public key matches the pinned key.)
+
+---
+
+### 115a. --pinnedpubkey (Success case - Hash)
+**Description**: Verifying SSL connection by pinning the public key's SHA256 hash using `--pinnedpubkey`.
+**Input**:
 ```bash
-curl -s -k --pinnedpubkey "sha256//sTvYRerzKS4plCSo7seaa52NGgTTyfjpynnqgWGBlm8=" https://127.0.0.1:8443/get
+# Extract public key hash from cert using openssl
+# Note: we need the DER representation of the PUBLIC KEY, not the certificate or PEM.
+hash=$(openssl x509 -in server.crt -pubkey -noout | openssl pkey -pubin -outform DER | openssl dgst -sha256 -binary | openssl enc -base64)
+pinnedHash="sha256//$hash"
+curl -s -k --pinnedpubkey "$pinnedHash" https://127.0.0.1:8443/get
 ```
 **Output**:
-(Successful connection if the server's public key matches the pinned key, otherwise fails with an error.)
+(Successful connection if the public key's hash matches the pinned value.)
+
+---
+
+### 115b. --pinnedpubkey (Failure case - Mismatch)
+**Description**: Verifying that the connection fails when the pinned public key hash/file does not match the server's public key.
+**Input**:
+```bash
+curl -s -k --pinnedpubkey "wrong_pubkey.pem" https://127.0.0.1:8443/get
+```
+**Output**:
+(Fails with a non-zero exit code due to public key mismatch.)
 
 ---
 

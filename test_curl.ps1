@@ -11,6 +11,9 @@ param(
     [string]$CurlCmd
 )
 
+# Set a default timeout for Kemforge to avoid hangs during tests
+$env:KEMFORGE_DEFAULT_TIMEOUT = "120s"
+
 $ErrorActionPreference = "Continue"
 
 $passed = 0
@@ -28,9 +31,11 @@ $certFile = Join-Path $scriptDir "server.crt"
 $pubkeyFile = Join-Path $scriptDir "server_pub.pem"
 $httpPort = 8080
 $httpsPort = 8443
+$mtlsPort = 8444
 $proxyPort = 8081
 $baseUrl = "http://127.0.0.1:$httpPort"
 $httpsBaseUrl = "https://127.0.0.1:$httpsPort"
+$mtlsBaseUrl = "https://127.0.0.1:$mtlsPort"
 
 # ---------------------------------------------------------------------------
 # Helper functions
@@ -151,7 +156,7 @@ if (-not (Test-Path $testServer)) {
     exit 1
 }
 
-Write-Host "Starting local test server on ports $httpPort (HTTP), $httpsPort (HTTPS) and $proxyPort (CONNECT)..." -ForegroundColor Magenta
+Write-Host "Starting local test server on ports $httpPort (HTTP), $httpsPort (HTTPS), $mtlsPort (mTLS) and $proxyPort (CONNECT)..." -ForegroundColor Magenta
 
 # Stop any existing server process on these ports (cleanup from previous runs)
 try {
@@ -160,13 +165,18 @@ try {
     } else {
         Get-Process | Where-Object { $_.CommandLine -match "test_server.py" } | Stop-Process -Force -ErrorAction SilentlyContinue
     }
-    # Wait a bit for ports to be released
-    Start-Sleep -Seconds 1
+    # Delete old certs to ensure they are regenerated with correct CA/Usage flags
+    if (Test-Path $certFile) { Remove-Item $certFile }
+    if (Test-Path $pubkeyFile) { Remove-Item $pubkeyFile }
+    if (Test-Path (Join-Path $scriptDir "server.key")) { Remove-Item (Join-Path $scriptDir "server.key") }
+    
+    # Wait a bit longer for ports to be released
+    Start-Sleep -Seconds 2
 } catch {}
 
 $serverPsi = New-Object System.Diagnostics.ProcessStartInfo
 $serverPsi.FileName = $venvPython
-$serverPsi.Arguments = "$testServer --port $httpPort --https-port $httpsPort --proxy-port $proxyPort"
+$serverPsi.Arguments = "$testServer --port $httpPort --https-port $httpsPort --mtls-port $mtlsPort --proxy-port $proxyPort"
 $serverPsi.RedirectStandardOutput = $true
 $serverPsi.RedirectStandardError = $true
 $serverPsi.UseShellExecute = $false
@@ -1094,24 +1104,118 @@ if ($result.Stdout -match "`"tmp`":\s*`"val`"") {
 # ----------------------------------------------------------------
 $totalTests++
 Write-TestHeader "55. Mutual TLS (Client Certificates)"
-$certFile = Join-Path $scriptDir "client.crt"
-$keyFile = Join-Path $scriptDir "client.key"
-# We'll use openssl to generate a real client cert/key
+$clientCertFile = Join-Path $scriptDir "client.crt"
+$clientKeyFile = Join-Path $scriptDir "client.key"
+$clientCsrFile = Join-Path $scriptDir "client.csr"
+$serverCertFile = Join-Path $scriptDir "server.crt"
+$serverKeyFile = Join-Path $scriptDir "server.key"
+
+# We'll use openssl to generate a client cert signed by server.crt
 try {
-    bash -c "openssl req -x509 -newkey rsa:2048 -keyout $keyFile -out $certFile -days 1 -nodes -subj '/CN=localhost' 2>/dev/null"
-    if (Test-Path $certFile) {
-        $result = Invoke-CurlTest "-s -k --cert `"$certFile`" --key `"$keyFile`" $httpsBaseUrl/mtls"
+    bash -c "openssl genrsa -out $clientKeyFile 2048 2>/dev/null"
+    bash -c "openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>/dev/null"
+    bash -c "openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>/dev/null"
+    
+    if (Test-Path $clientCertFile) {
+        $result = Invoke-CurlTest "-s -k --cert `"$clientCertFile`" --key `"$clientKeyFile`" $mtlsBaseUrl/mtls"
         if ($result.Stdout -match '"authenticated":\s*true') {
             Write-Pass "Mutual TLS request with valid certificates succeeded."
         } else {
-            Write-Fail "Mutual TLS simulation failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+            Write-Fail "Mutual TLS request failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
         }
     } else {
-        Write-Skip "OpenSSL not available or failed to generate certificates."
+        Write-Skip "OpenSSL failed to generate/sign certificates."
     }
 } finally {
-    if (Test-Path $certFile) { Remove-Item $certFile }
-    if (Test-Path $keyFile) { Remove-Item $keyFile }
+    if (Test-Path $clientCertFile) { Remove-Item $clientCertFile }
+    if (Test-Path $clientKeyFile) { Remove-Item $clientKeyFile }
+    if (Test-Path $clientCsrFile) { Remove-Item $clientCsrFile }
+    if (Test-Path (Join-Path $scriptDir "server.srl")) { Remove-Item (Join-Path $scriptDir "server.srl") }
+}
+
+# ----------------------------------------------------------------
+# Test 55.1: Negative mTLS - No Certificate
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "55.1. Negative mTLS - No Certificate"
+$result = Invoke-CurlTest "-s -k $mtlsBaseUrl/mtls" -ReturnStderr
+if ($result.ExitCode -ne 0 -or $result.Stderr -match "alert" -or $result.Stderr -match "SSL" -or $result.Stderr -match "closed") {
+    Write-Pass "mTLS correctly failed when no certificate was provided."
+} else {
+    Write-Fail "mTLS should have failed without certificate. Exit: $($result.ExitCode), Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
+# Test 55.2: Negative mTLS - Untrusted Certificate
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "55.2. Negative mTLS - Untrusted Certificate"
+$untrustedCert = Join-Path $scriptDir "untrusted.crt"
+$untrustedKey = Join-Path $scriptDir "untrusted.key"
+try {
+    # Generate a self-signed cert that the server doesn't trust
+    bash -c "openssl req -x509 -newkey rsa:2048 -keyout $untrustedKey -out $untrustedCert -days 1 -nodes -subj '/CN=untrusted' 2>/dev/null"
+    $result = Invoke-CurlTest "-s -k --cert `"$untrustedCert`" --key `"$untrustedKey`" $mtlsBaseUrl/mtls" -ReturnStderr
+    if ($result.ExitCode -ne 0 -or $result.Stderr -match "alert" -or $result.Stderr -match "SSL") {
+        Write-Pass "mTLS correctly failed with untrusted certificate."
+    } else {
+        Write-Fail "mTLS should have failed with untrusted certificate. Exit: $($result.ExitCode), Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+    }
+} finally {
+    if (Test-Path $untrustedCert) { Remove-Item $untrustedCert }
+    if (Test-Path $untrustedKey) { Remove-Item $untrustedKey }
+}
+
+# ----------------------------------------------------------------
+# Test 55.3: Negative mTLS - Expired Certificate
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "55.3. Negative mTLS - Expired Certificate"
+$expiredCert = Join-Path $scriptDir "expired.crt"
+try {
+    # Generate an expired cert using python and cryptography
+    $pythonCmd = "from cryptography import x509; from cryptography.hazmat.primitives import hashes, serialization; from cryptography.hazmat.primitives.asymmetric import rsa; import datetime; key = rsa.generate_private_key(65537, 2048); subject = x509.Name([x509.NameAttribute(x509.NameOID.COMMON_NAME, 'expired')]); cert = x509.CertificateBuilder().subject_name(subject).issuer_name(subject).public_key(key.public_key()).serial_number(x509.random_serial_number()).not_valid_before(datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=2)).not_valid_after(datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).sign(key, hashes.SHA256()); print(cert.public_bytes(serialization.Encoding.PEM).decode()); print(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()).decode())"
+    bash -c "$venvPython -c `"$pythonCmd`" > $expiredCert"
+    
+    $result = Invoke-CurlTest "-s -k --cert `"$expiredCert`" $mtlsBaseUrl/mtls" -ReturnStderr
+    if ($result.ExitCode -ne 0 -or $result.Stderr -match "alert" -or $result.Stderr -match "expired" -or $result.Stderr -match "SSL") {
+        Write-Pass "mTLS correctly failed with expired certificate."
+    } else {
+        Write-Fail "mTLS should have failed with expired certificate. Exit: $($result.ExitCode), Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+    }
+} finally {
+    if (Test-Path $expiredCert) { Remove-Item $expiredCert }
+}
+
+# ----------------------------------------------------------------
+# Test 55.4: mTLS with Encrypted Private Key
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "55.4. mTLS with Encrypted Private Key"
+$encKeyFile = Join-Path $scriptDir "enc_client.key"
+$password = "testpass"
+try {
+    # Generate a client cert again
+    bash -c "openssl genrsa -out $clientKeyFile 2048 2>/dev/null"
+    # Encrypt the key
+    bash -c "openssl rsa -in $clientKeyFile -aes256 -passout pass:$password -out $encKeyFile -traditional 2>/dev/null"
+    bash -c "openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>/dev/null"
+    bash -c "openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>/dev/null"
+    
+    if (Test-Path $clientCertFile) {
+        $result = Invoke-CurlTest "-s -k --cert `"$clientCertFile`" --key `"$encKeyFile`" --pass `"$password`" $mtlsBaseUrl/mtls"
+        if ($result.Stdout -match '"authenticated":\s*true') {
+            Write-Pass "mTLS request with encrypted private key succeeded."
+        } else {
+            Write-Fail "mTLS with encrypted key failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+        }
+    }
+} finally {
+    if (Test-Path $clientCertFile) { Remove-Item $clientCertFile }
+    if (Test-Path $clientKeyFile) { Remove-Item $clientKeyFile }
+    if (Test-Path $encKeyFile) { Remove-Item $encKeyFile }
+    if (Test-Path $clientCsrFile) { Remove-Item $clientCsrFile }
+    if (Test-Path (Join-Path $scriptDir "server.srl")) { Remove-Item (Join-Path $scriptDir "server.srl") }
 }
 
 # ----------------------------------------------------------------

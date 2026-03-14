@@ -55,6 +55,7 @@ type Options struct {
 	TargetURLs    []string
 	CertFile      string // --cert
 	KeyFile       string // --key
+	Pass          string // --pass
 	DigestAuth    bool   // --digest
 	NetrcFile     string // --netrc-file
 	UnixSocket    string // --unix-socket
@@ -272,15 +273,36 @@ func ParseArgs(args []string) []Options {
 			if i < len(args) {
 				opts.NoProxy = args[i]
 			}
-		case a == "--cert":
+		case a == "-E" || a == "--cert":
 			i++
 			if i < len(args) {
-				opts.CertFile = args[i]
+				cert := args[i]
+				opts.CertFile = cert
+				// Check for certificate:password
+				if !strings.HasPrefix(cert, "./") && !strings.HasPrefix(cert, "/") {
+					colonIdx := strings.Index(cert, ":")
+					if colonIdx == 1 && len(cert) >= 3 && ((cert[0] >= 'a' && cert[0] <= 'z') || (cert[0] >= 'A' && cert[0] <= 'Z')) && (cert[2] == '\\' || cert[2] == '/') {
+						// Windows drive prefix (e.g., C:\), look for a second colon
+						rest := cert[2:]
+						if nextColon := strings.Index(rest, ":"); nextColon != -1 {
+							opts.CertFile = cert[:2+nextColon]
+							opts.Pass = rest[nextColon+1:]
+						}
+					} else if colonIdx != -1 {
+						opts.CertFile = cert[:colonIdx]
+						opts.Pass = cert[colonIdx+1:]
+					}
+				}
 			}
 		case a == "--key":
 			i++
 			if i < len(args) {
 				opts.KeyFile = args[i]
+			}
+		case a == "--pass":
+			i++
+			if i < len(args) {
+				opts.Pass = args[i]
 			}
 		case a == "--digest":
 			opts.DigestAuth = true

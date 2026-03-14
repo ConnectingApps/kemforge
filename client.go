@@ -106,7 +106,12 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		TLSClientConfig:       tlsConfig,
+		DisableCompression:    !opts.Compressed,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   5 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ResponseHeaderTimeout: 10 * time.Second,
 	}
 
 	// Enable HTTP/2 support on the custom transport unless --http1.1 is set
@@ -178,8 +183,13 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 
 	// Set connect timeout via custom dialer
+	connectTimeout := time.Duration(opts.ConnectTmout * float64(time.Second))
+	if connectTimeout == 0 {
+		connectTimeout = 30 * time.Second
+	}
 	dialer := &net.Dialer{
-		Timeout: time.Duration(opts.ConnectTmout * float64(time.Second)),
+		Timeout:   connectTimeout,
+		KeepAlive: 30 * time.Second,
 	}
 
 	if opts.Interface != "" {
@@ -229,6 +239,13 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	client := &http.Client{
 		Transport: transport,
 	}
+	if opts.MaxTime > 0 {
+		client.Timeout = time.Duration(opts.MaxTime * float64(time.Second))
+	} else if defTimeout := os.Getenv("KEMFORGE_DEFAULT_TIMEOUT"); defTimeout != "" {
+		if d, err := time.ParseDuration(defTimeout); err == nil {
+			client.Timeout = d
+		}
+	}
 
 	// Follow redirects or not
 	if !opts.FollowRedirs {
@@ -277,8 +294,8 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 
 	// Set client certificates
-	if opts.CertFile != "" && opts.KeyFile != "" {
-		cert, err := tls.LoadX509KeyPair(opts.CertFile, opts.KeyFile)
+	if opts.CertFile != "" {
+		cert, err := loadCertWithKey(opts.CertFile, opts.KeyFile, opts.Pass)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: failed to load client cert/key: %v\n", err)
 		} else {
@@ -294,4 +311,42 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 
 	return client, jar
+}
+
+func loadCertWithKey(certFile, keyFile, password string) (tls.Certificate, error) {
+	if keyFile == "" {
+		keyFile = certFile
+	}
+	certPEM, err := os.ReadFile(certFile)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+	keyPEM, err := os.ReadFile(keyFile)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	var decryptedKeyPEM []byte
+	tmpPEM := keyPEM
+	for {
+		var block *pem.Block
+		block, tmpPEM = pem.Decode(tmpPEM)
+		if block == nil {
+			break
+		}
+		if x509.IsEncryptedPEMBlock(block) {
+			der, err := x509.DecryptPEMBlock(block, []byte(password))
+			if err != nil {
+				return tls.Certificate{}, fmt.Errorf("failed to decrypt private key: %v", err)
+			}
+			block = &pem.Block{Type: block.Type, Bytes: der}
+		}
+		decryptedKeyPEM = append(decryptedKeyPEM, pem.EncodeToMemory(block)...)
+	}
+
+	if len(decryptedKeyPEM) == 0 {
+		return tls.X509KeyPair(certPEM, keyPEM) // Fallback to original
+	}
+
+	return tls.X509KeyPair(certPEM, decryptedKeyPEM)
 }

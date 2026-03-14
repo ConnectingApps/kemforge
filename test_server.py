@@ -21,6 +21,7 @@ import time
 import socket
 import datetime
 import ipaddress
+import ssl
 from flask import Flask, request, jsonify, redirect, make_response, Response
 from cryptography import x509
 from cryptography.x509.oid import NameOID, ExtendedKeyUsageOID
@@ -82,11 +83,12 @@ def generate_cert(cert_path, key_path):
     ).add_extension(
         x509.SubjectAlternativeName([
             x509.IPAddress(ipaddress.ip_address("127.0.0.1")),
+            x509.IPAddress(ipaddress.ip_address("::1")),
             x509.DNSName("localhost"),
         ]),
         critical=False,
     ).add_extension(
-        x509.BasicConstraints(ca=False, path_length=None),
+        x509.BasicConstraints(ca=True, path_length=None),
         critical=True,
     ).add_extension(
         x509.KeyUsage(
@@ -95,14 +97,17 @@ def generate_cert(cert_path, key_path):
             key_encipherment=True,
             data_encipherment=False,
             key_agreement=False,
-            key_cert_sign=False,
-            crl_sign=False,
+            key_cert_sign=True,
+            crl_sign=True,
             encipher_only=False,
             decipher_only=False,
         ),
         critical=True,
     ).add_extension(
-        x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]),
+        x509.ExtendedKeyUsage([
+            ExtendedKeyUsageOID.SERVER_AUTH,
+            ExtendedKeyUsageOID.CLIENT_AUTH
+        ]),
         critical=False,
     ).sign(key, hashes.SHA256())
 
@@ -525,6 +530,7 @@ def run_connect_proxy(port):
     while True:
         client, _ = server.accept()
         def tunnel(c):
+            remote = None
             try:
                 data = c.recv(4096)
                 if data.startswith(b"CONNECT"):
@@ -534,19 +540,30 @@ def run_connect_proxy(port):
                         target = parts[1].decode().split(":")
                         host = target[0]
                         port_num = int(target[1])
-                        with socket.create_connection((host, port_num)) as remote:
-                            c.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-                            def forward(src, dst):
-                                try:
-                                    while True:
-                                        d = src.recv(4096)
-                                        if not d: break
-                                        dst.sendall(d)
+                        remote = socket.create_connection((host, port_num))
+                        c.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+                        def forward(src, dst):
+                            try:
+                                while True:
+                                    d = src.recv(4096)
+                                    if not d: break
+                                    dst.sendall(d)
+                            except: pass
+                            finally:
+                                try: src.close()
                                 except: pass
-                            threading.Thread(target=forward, args=(c, remote), daemon=True).start()
-                            forward(remote, c)
-                c.close()
-            except: pass
+                                try: dst.close()
+                                except: pass
+                        t1 = threading.Thread(target=forward, args=(c, remote), daemon=True)
+                        t2 = threading.Thread(target=forward, args=(remote, c), daemon=True)
+                        t1.start()
+                        t2.start()
+                        # No join needed as we want them to run in parallel and they will close each other
+                else:
+                    c.close()
+            except:
+                if c: c.close()
+                if remote: remote.close()
         threading.Thread(target=tunnel, args=(client,), daemon=True).start()
 
 
@@ -563,16 +580,44 @@ def run_https(port):
     app.run(host="::", port=port, ssl_context=(cert_path, key_path), use_reloader=False)
 
 
+def run_mtls(port):
+    """Run a third Flask instance with mTLS enabled."""
+    cert_path = "server.crt"
+    key_path = "server.key"
+    if not os.path.exists(cert_path) or not os.path.exists(key_path):
+        generate_cert(cert_path, key_path)
+    
+    # Create SSL context that REQUIRES a client certificate
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(cert_path, key_path)
+    # We trust the server's own cert as a CA for the test client certs
+    context.load_verify_locations(cafile=cert_path)
+    context.verify_mode = ssl.CERT_REQUIRED
+    
+    app.run(host="::", port=port, ssl_context=context, use_reloader=False)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Local httpbin-like test server")
     parser.add_argument("--port", type=int, default=8080, help="HTTP port (default 8080)")
     parser.add_argument("--https-port", type=int, default=8443, help="HTTPS port (default 8443)")
+    parser.add_argument("--mtls-port", type=int, default=8444, help="mTLS port (default 8444)")
     parser.add_argument("--proxy-port", type=int, default=8081, help="CONNECT proxy port (default 8081)")
     args = parser.parse_args()
+
+    # Generate certificates once before starting threads
+    cert_path = "server.crt"
+    key_path = "server.key"
+    if not os.path.exists(cert_path) or not os.path.exists(key_path):
+        generate_cert(cert_path, key_path)
 
     # Start HTTPS server in a background thread
     https_thread = threading.Thread(target=run_https, args=(args.https_port,), daemon=True)
     https_thread.start()
+
+    # Start mTLS server in a background thread
+    mtls_thread = threading.Thread(target=run_mtls, args=(args.mtls_port,), daemon=True)
+    mtls_thread.start()
 
     # Start CONNECT proxy in a background thread
     proxy_thread = threading.Thread(target=run_connect_proxy, args=(args.proxy_port,), daemon=True)
