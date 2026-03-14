@@ -57,14 +57,6 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	// Build request body
 	body, contentType := buildRequestBody(opts)
 
-	// Override content type if user set it via -H
-	for _, h := range opts.Headers {
-		parts := strings.SplitN(h, ":", 2)
-		if len(parts) == 2 && strings.EqualFold(strings.TrimSpace(parts[0]), "content-type") {
-			contentType = strings.TrimSpace(parts[1])
-		}
-	}
-
 	// Build HTTP request
 	req, err := http.NewRequest(method, targetURL, body)
 	if err != nil {
@@ -105,8 +97,16 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 			} else {
 				if strings.EqualFold(key, "Host") {
 					req.Host = val
+					continue
 				}
-				req.Header.Add(key, val)
+				if strings.EqualFold(key, "User-Agent") ||
+					strings.EqualFold(key, "Referer") ||
+					strings.EqualFold(key, "Accept") ||
+					strings.EqualFold(key, "Content-Type") {
+					req.Header.Set(key, val)
+				} else {
+					req.Header.Add(key, val)
+				}
 			}
 		}
 	}

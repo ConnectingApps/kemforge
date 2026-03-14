@@ -2207,6 +2207,59 @@ try {
 }
 
 # ----------------------------------------------------------------
+# Test 130: Duplicate Header Prevention (Content-Type)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "130. Duplicate Header Prevention (Content-Type)"
+# -d normally sets Content-Type to application/x-www-form-urlencoded
+$result = Invoke-CurlTest "-s -d `"param=value`" -H `"Content-Type: application/json`" $baseUrl/post"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    # Check if Content-Type is exactly application/json and not a list
+    if ($json.headers.'Content-Type' -eq "application/json") {
+        Write-Pass "Content-Type correctly overrode default and did not duplicate."
+    } else {
+        Write-Fail "Content-Type mismatch or duplicate: $($json.headers.'Content-Type')"
+    }
+} catch {
+    Write-Fail "Failed to parse JSON response: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 131: Duplicate Header Prevention (User-Agent)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "131. Duplicate Header Prevention (User-Agent)"
+$result = Invoke-CurlTest "-s -H `"User-Agent: MyCustomAgent/1.0`" $baseUrl/headers"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    if ($json.headers.'User-Agent' -eq "MyCustomAgent/1.0") {
+        Write-Pass "User-Agent correctly overrode default and did not duplicate."
+    } else {
+        Write-Fail "User-Agent mismatch or duplicate: $($json.headers.'User-Agent')"
+    }
+} catch {
+    Write-Fail "Failed to parse JSON response: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 132: Duplicate Header Prevention (Accept)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "132. Duplicate Header Prevention (Accept)"
+$result = Invoke-CurlTest "-s -H `"Accept: application/xml`" $baseUrl/headers"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    if ($json.headers.Accept -eq "application/xml") {
+        Write-Pass "Accept correctly overrode default and did not duplicate."
+    } else {
+        Write-Fail "Accept mismatch or duplicate: $($json.headers.Accept)"
+    }
+} catch {
+    Write-Fail "Failed to parse JSON response: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
 # Stop the local server and print summary
 # ----------------------------------------------------------------
 if (-not $serverProcess.HasExited) { $serverProcess.Kill() }

@@ -1768,3 +1768,57 @@ curl -s -C - -o download.txt http://127.0.0.1:8080/range-test
 ```
 **Output**:
 (Success, no extra data appended or error depending on implementation.)
+
+---
+
+### 130. Duplicate Header Prevention (Content-Type)
+**Description**: Verifying that `-H "Content-Type: ..."` replaces the default value instead of adding a second header, especially when using `-d`.
+**Input**:
+```bash
+curl -s -d "param=value" -H "Content-Type: application/json" http://127.0.0.1:8080/post
+```
+**Output**:
+```json
+{
+  "headers": {
+    "Content-Type": "application/json"
+  }
+}
+```
+(Only one Content-Type header should be present in the request received by the server.)
+
+---
+
+### 131. Duplicate Header Prevention (User-Agent)
+**Description**: Verifying that `-H "User-Agent: ..."` replaces the default value instead of adding a second header.
+**Input**:
+```bash
+curl -s -H "User-Agent: MyCustomAgent/1.0" http://127.0.0.1:8080/headers
+```
+**Output**:
+```json
+{
+  "headers": {
+    "User-Agent": "MyCustomAgent/1.0"
+  }
+}
+```
+(Only one User-Agent header should be present.)
+
+---
+
+### 132. Duplicate Header Prevention (Accept)
+**Description**: Verifying that `-H "Accept: ..."` replaces the default value instead of adding a second header.
+**Input**:
+```bash
+curl -s -H "Accept: application/xml" http://127.0.0.1:8080/headers
+```
+**Output**:
+```json
+{
+  "headers": {
+    "Accept": "application/xml"
+  }
+}
+```
+(Only one Accept header should be present.)
