@@ -108,20 +108,20 @@ func ParseArgs(args []string) []Options {
 			opts = Options{
 				UserAgent: "kemforge/1.0",
 			}
-		case a == "-s":
+		case a == "-s" || a == "--silent":
 			opts.Silent = true
-		case a == "-S":
+		case a == "-S" || a == "--show-error":
 			opts.ShowErrors = true
 		case a == "-sS" || a == "-Ss":
 			opts.Silent = true
 			opts.ShowErrors = true
-		case a == "-v":
+		case a == "-v" || a == "--verbose":
 			opts.Verbose = true
-		case a == "-I":
+		case a == "-I" || a == "--head":
 			opts.HeadReq = true
-		case a == "-i":
+		case a == "-i" || a == "--include":
 			opts.IncludeHdr = true
-		case a == "-L":
+		case a == "-L" || a == "--location":
 			opts.FollowRedirs = true
 		case a == "--max-redirs":
 			i++
@@ -182,7 +182,7 @@ func ParseArgs(args []string) []Options {
 			if i < len(args) {
 				opts.PinnedPubKey = args[i]
 			}
-		case a == "--dump-header":
+		case a == "-D" || a == "--dump-header":
 			i++
 			if i < len(args) {
 				opts.DumpHeader = args[i]
@@ -211,24 +211,24 @@ func ParseArgs(args []string) []Options {
 			opts.GetMode = true
 		case a == "-Z" || a == "--parallel":
 			opts.Parallel = true
-		case a == "-O":
+		case a == "-O" || a == "--remote-name":
 			opts.RemoteOut = true
-		case a == "-X":
+		case a == "-X" || a == "--request":
 			i++
 			if i < len(args) {
 				opts.Method = args[i]
 			}
-		case a == "-A":
+		case a == "-A" || a == "--user-agent":
 			i++
 			if i < len(args) {
 				opts.UserAgent = args[i]
 			}
-		case a == "-H":
+		case a == "-H" || a == "--header":
 			i++
 			if i < len(args) {
 				opts.Headers = append(opts.Headers, args[i])
 			}
-		case a == "-o":
+		case a == "-o" || a == "--output":
 			i++
 			if i < len(args) {
 				opts.OutputFile = args[i]
@@ -336,7 +336,7 @@ func ParseArgs(args []string) []Options {
 			if i < len(args) {
 				opts.DohURL = args[i]
 			}
-		case a == "-u":
+		case a == "-u" || a == "--user":
 			i++
 			if i < len(args) {
 				opts.BasicAuth = args[i]
@@ -346,7 +346,7 @@ func ParseArgs(args []string) []Options {
 			if i < len(args) {
 				parseConfigFile(&opts, args[i])
 			}
-		case a == "-x":
+		case a == "-x" || a == "--proxy":
 			i++
 			if i < len(args) {
 				opts.ProxyURL = args[i]
@@ -356,7 +356,7 @@ func ParseArgs(args []string) []Options {
 			if i < len(args) {
 				opts.ProxyUser = args[i]
 			}
-		case a == "-d":
+		case a == "-d" || a == "--data":
 			i++
 			if i < len(args) {
 				opts.DataArgs = append(opts.DataArgs, args[i])
