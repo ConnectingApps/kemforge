@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -35,7 +37,7 @@ func (j *simpleCookieJar) Cookies(u *url.URL) []*http.Cookie {
 	host := u.Hostname()
 	var result []*http.Cookie
 	now := time.Now()
-	for _, c := range j.entries[host] {
+	for c := range maps.Values(j.entries[host]) {
 		if !c.Expires.IsZero() && c.Expires.Before(now) {
 			continue
 		}
@@ -52,10 +54,8 @@ func (j *simpleCookieJar) AllCookies() []*http.Cookie {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	var result []*http.Cookie
-	for _, m := range j.entries {
-		for _, c := range m {
-			result = append(result, c)
-		}
+	for m := range maps.Values(j.entries) {
+		result = append(result, slices.Collect(maps.Values(m))...)
 	}
 	return result
 }
@@ -66,7 +66,7 @@ func loadCookiesIntoJar(jar *simpleCookieJar, filename string, reqURL *url.URL) 
 	if err != nil {
 		return
 	}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -101,7 +101,7 @@ func saveCookiesFromJar(jar *simpleCookieJar, filename string) {
 	jar.mu.Lock()
 	defer jar.mu.Unlock()
 	for host, cookies := range jar.entries {
-		for _, c := range cookies {
+		for c := range maps.Values(cookies) {
 			secure := "FALSE"
 			if c.Secure {
 				secure = "TRUE"

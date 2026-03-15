@@ -521,8 +521,7 @@ func expandGlob(s string) []string {
 				found = true
 				prefix := u[:start]
 				suffix := u[end+1:]
-				options := strings.Split(u[start+1:end], ",")
-				for _, opt := range options {
+				for opt := range strings.SplitSeq(u[start+1:end], ",") {
 					newURLs = append(newURLs, prefix+opt+suffix)
 				}
 			} else {

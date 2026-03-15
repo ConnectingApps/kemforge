@@ -146,7 +146,8 @@ func executeRequest(opts Options, client *http.Client, jar *simpleCookieJar, tar
 	var cancel context.CancelFunc
 	ctx := context.Background()
 	if opts.MaxTime > 0 {
-		ctx, cancel = context.WithTimeout(ctx, time.Duration(opts.MaxTime*float64(time.Second)))
+		timeout := time.Duration(opts.MaxTime * float64(time.Second))
+		ctx, cancel = context.WithTimeoutCause(ctx, timeout, fmt.Errorf("kemforge: (28) Operation timed out"))
 		defer cancel()
 		req = req.WithContext(ctx)
 	}

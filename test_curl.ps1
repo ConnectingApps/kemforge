@@ -1226,7 +1226,12 @@ try {
     if ($hasOpenSSL) {
         & openssl genrsa -out $clientKeyFile 2048 2>$null
         # Encrypt the key
+        # Try with -traditional (required for OpenSSL 3.0+ to get legacy format)
         & openssl rsa -in $clientKeyFile -aes256 -passout pass:$password -out $encKeyFile -traditional 2>$null
+        if (-not (Test-Path $encKeyFile)) {
+            # Fallback for LibreSSL/Older OpenSSL which defaults to traditional format anyway
+            & openssl rsa -in $clientKeyFile -aes256 -passout pass:$password -out $encKeyFile 2>$null
+        }
         & openssl req -new -key $clientKeyFile -out $clientCsrFile -subj '/CN=localhost' 2>$null
         & openssl x509 -req -in $clientCsrFile -CA $serverCertFile -CAkey $serverKeyFile -CAcreateserial -out $clientCertFile -days 1 2>$null
     } else {
