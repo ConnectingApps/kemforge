@@ -1350,15 +1350,37 @@ curl -s http://127.0.0.1:8080/get -o out1.txt http://127.0.0.1:8080/headers -o o
 ---
 
 ### 88. --data-raw Flag
-**Description**: Sends data that starts with `@` as a literal string instead of a filename, and preserves newlines in the input string.
+**Description**: Sends data with `@` character literally using `--data-raw`.
 **Input**:
 ```bash
 curl -s --data-raw "@literal" http://127.0.0.1:8080/post-data-raw
+```
+**Output**:
+(The response will contain the literal data "@literal".)
+
+---
+
+### 142. --data-raw with Newlines
+**Description**: Standard curl --data-raw preserves newlines.
+**Input**:
+```bash
 curl -s --data-raw "line1
 line2" http://127.0.0.1:8080/post-data-raw
 ```
 **Output**:
-(JSON response showing `@literal` or "line1\nline2" in the data field.)
+(The response will contain the literal string "line1\nline2".)
+
+---
+
+### 143. -d with Newlines (Literal String)
+**Description**: Standard curl -d preserves newlines when provided literally on the command line.
+**Input**:
+```bash
+curl -s -d "line1
+line2" http://127.0.0.1:8080/post-data-raw
+```
+**Output**:
+(The response will contain the literal string "line1\nline2".)
 
 ---
 
@@ -1934,3 +1956,14 @@ curl -s -f --fail-early http://127.0.0.1:8080/status/404 http://127.0.0.1:8080/g
 ```
 **Output**:
 (No output, as it stops on the first error, and curl exits with code 22.)
+
+---
+
+### 144. --manual
+**Description**: Display the full manual.
+**Input**:
+```bash
+curl --manual
+```
+**Output**:
+(The content of the KemForge manual.)

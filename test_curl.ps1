@@ -110,11 +110,17 @@ function Invoke-CurlTest {
         $curlErrTask = $pCurl.StandardError.ReadToEndAsync()
         $pCurl.WaitForExit()
         
+        $curlOut = $curlOutTask.GetAwaiter().GetResult()
+        $curlErr = $curlErrTask.GetAwaiter().GetResult()
+
         $curlExit = $pCurl.ExitCode
         if ($curlExit -eq 0) {
             Write-Host "  [BASELINE] curl: OK" -ForegroundColor DarkGray
         } else {
             Write-Host "  [BASELINE] curl: FAILED (ExitCode: $curlExit)" -ForegroundColor Yellow
+            if ($curlErr) {
+                Write-Host "  [BASELINE] curl stderr: $curlErr" -ForegroundColor DarkGray
+            }
         }
     }
 
@@ -2404,7 +2410,7 @@ if ($result.ExitCode -eq 3) {
 # Test 127: Exit 7: Failed to Connect
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "127.0.0.1:1"
+Write-TestHeader "127. Exit 7: Failed to Connect"
 $result = Invoke-CurlTest "http://127.0.0.1:1"
 if ($result.ExitCode -eq 7) {
     Write-Pass "Correct ExitCode 7 for connection refused."
@@ -2541,10 +2547,20 @@ if ($result.ExitCode -eq 22 -and $result.Stdout -notmatch "url.*get") {
 $totalTests++
 Write-TestHeader "144. --manual"
 $result = Invoke-CurlTest "--manual"
-if ($result.Stdout -match "# KemForge Manual") {
-    Write-Pass "--manual successfully displayed the manual content."
+$isKemforge = ($CurlCmd -ne "curl" -and $CurlCmd -ne "curl.exe")
+if ($isKemforge) {
+    if ($result.Stdout -match "# KemForge Manual") {
+        Write-Pass "--manual successfully displayed the manual content."
+    } else {
+        Write-Fail "--manual failed. Stdout: $($result.Stdout)"
+    }
 } else {
-    Write-Fail "--manual failed. Stdout: $($result.Stdout)"
+    # For curl, check for "curl - transfer a URL" in the output
+    if ($result.Stdout -match "curl - transfer a URL") {
+        Write-Pass "curl --manual successfully displayed the curl manual."
+    } else {
+        Write-Fail "curl --manual failed to display expected content."
+    }
 }
 
 # ----------------------------------------------------------------
