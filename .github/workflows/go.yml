@@ -5,9 +5,9 @@ name: Go
 
 on:
   push:
-    branches: [ "main", "feature/**", "copilot/**", "dependabot/**" ]
+    branches: [ "main", "feature/**", "copilot/**", "dependabot/**", "**-macos" ]
   pull_request:
-    branches: [ "main", "feature/**", "copilot/**", "dependabot/**" ]
+    branches: [ "main", "feature/**", "copilot/**", "dependabot/**", "**-macos" ]
 
 jobs:
 
@@ -32,9 +32,14 @@ jobs:
 
   build_and_test:
     needs: verify_test_script
+    if: >-
+      matrix.os != 'macos-latest' ||
+      github.ref_name == 'main' ||
+      endsWith(github.ref_name, '-macos') ||
+      endsWith(github.head_ref, '-macos')
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
             binary: ./kemforge
@@ -42,6 +47,9 @@ jobs:
           - os: windows-latest
             binary: ./kemforge.exe
             pip: .\.venv\Scripts\pip
+          - os: macos-latest
+            binary: ./kemforge
+            pip: .venv/bin/pip
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v5
