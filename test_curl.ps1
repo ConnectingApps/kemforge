@@ -1156,10 +1156,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 55.1: Negative mTLS - No Certificate
+# Test 56: Negative mTLS - No Certificate
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "55.1. Negative mTLS - No Certificate"
+Write-TestHeader "56. Negative mTLS - No Certificate"
 $result = Invoke-CurlTest "-s -k $mtlsBaseUrl/mtls" -ReturnStderr
 if ($result.ExitCode -ne 0 -or $result.Stderr -match "alert" -or $result.Stderr -match "SSL" -or $result.Stderr -match "closed") {
     Write-Pass "mTLS correctly failed when no certificate was provided."
@@ -1168,10 +1168,10 @@ if ($result.ExitCode -ne 0 -or $result.Stderr -match "alert" -or $result.Stderr 
 }
 
 # ----------------------------------------------------------------
-# Test 55.2: Negative mTLS - Untrusted Certificate
+# Test 57: Negative mTLS - Untrusted Certificate
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "55.2. Negative mTLS - Untrusted Certificate"
+Write-TestHeader "57. Negative mTLS - Untrusted Certificate"
 $untrustedCert = Join-Path $scriptDir "untrusted.crt"
 $untrustedKey = Join-Path $scriptDir "untrusted.key"
 try {
@@ -1194,10 +1194,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 55.3: Negative mTLS - Expired Certificate
+# Test 58: Negative mTLS - Expired Certificate
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "55.3. Negative mTLS - Expired Certificate"
+Write-TestHeader "58. Negative mTLS - Expired Certificate"
 $expiredCert = Join-Path $scriptDir "expired.crt"
 try {
     # Generate an expired cert using python and cryptography
@@ -1215,10 +1215,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 55.4: mTLS with Encrypted Private Key
+# Test 59: mTLS with Encrypted Private Key
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "55.4. mTLS with Encrypted Private Key"
+Write-TestHeader "59. mTLS with Encrypted Private Key"
 $encKeyFile = Join-Path $scriptDir "enc_client.key"
 $password = "testpass"
 try {
@@ -1251,10 +1251,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 56: Negative SSL Verification
+# Test 60: Negative SSL Verification
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "56. Negative SSL Verification"
+Write-TestHeader "60. Negative SSL Verification"
 # Should fail without -k because cert is self-signed/adhoc
 $result = Invoke-CurlTest "-sS $httpsBaseUrl/get" -ReturnStderr
 if ($result.ExitCode -ne 0 -and ($result.Stderr -match "SSL" -or $result.ExitCode -eq 60)) {
@@ -1264,10 +1264,10 @@ if ($result.ExitCode -ne 0 -and ($result.Stderr -match "SSL" -or $result.ExitCod
 }
 
 # ----------------------------------------------------------------
-# Test 57: HSTS Support
+# Test 61: HSTS Support
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "57. HSTS Support"
+Write-TestHeader "61. HSTS Support"
 $result = Invoke-CurlTest "-s -I $baseUrl/hsts"
 if ($result.Stdout -match "Strict-Transport-Security") {
     Write-Pass "HSTS header received correctly."
@@ -1276,10 +1276,10 @@ if ($result.Stdout -match "Strict-Transport-Security") {
 }
 
 # ----------------------------------------------------------------
-# Test 58: Digest Authentication
+# Test 62: Digest Authentication
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "58. Digest Authentication"
+Write-TestHeader "62. Digest Authentication"
 $result = Invoke-CurlTest "-s --digest -u user:password $baseUrl/digest-auth/user/password"
 if ($result.Stdout -match '"authenticated":\s*true') {
     Write-Pass "Digest authentication succeeded."
@@ -1288,10 +1288,10 @@ if ($result.Stdout -match '"authenticated":\s*true') {
 }
 
 # ----------------------------------------------------------------
-# Test 59: Netrc Support
+# Test 63: Netrc Support
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "59. Netrc Support"
+Write-TestHeader "63. Netrc Support"
 $netrcFile = Join-Path $scriptDir "test_netrc"
 "machine 127.0.0.1 login user password password" | Out-File $netrcFile -Encoding ascii
 try {
@@ -1306,10 +1306,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 60: Environment Variable Proxy Support
+# Test 64: Environment Variable Proxy Support
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "60. Environment Variable Proxy Support"
+Write-TestHeader "64. Environment Variable Proxy Support"
 $env:http_proxy = "http://127.0.0.1:$httpPort"
 try {
     # Curl should use the proxy from environment. 
@@ -1327,10 +1327,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 61: SOCKS Proxy Support
+# Test 65: SOCKS Proxy Support
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "61. SOCKS Proxy Support"
+Write-TestHeader "65. SOCKS Proxy Support"
 # We don't have a SOCKS proxy, but we can check if curl attempts to use it.
 # It should fail because no SOCKS proxy is running.
 $result = Invoke-CurlTest "-sS -x socks5://127.0.0.1:9099 $baseUrl/get" -ReturnStderr
@@ -1341,10 +1341,10 @@ if ($result.ExitCode -ne 0 -and ($result.Stderr -match "socks" -or $result.Stder
 }
 
 # ----------------------------------------------------------------
-# Test 62: Proxy-Specific Authentication
+# Test 66: Proxy-Specific Authentication
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "62. Proxy-Specific Authentication"
+Write-TestHeader "66. Proxy-Specific Authentication"
 $result = Invoke-CurlTest "-s -x http://127.0.0.1:$httpPort --proxy-user puser:ppass $baseUrl/proxy"
 if ($result.Stdout -match "Basic cHVzZXI6cHBhc3M=") {
     Write-Pass "Proxy-specific authentication header received."
@@ -1353,10 +1353,10 @@ if ($result.Stdout -match "Basic cHVzZXI6cHBhc3M=") {
 }
 
 # ----------------------------------------------------------------
-# Test 63: IP Version Control (-4 / -6)
+# Test 67: IP Version Control (-4 / -6)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "63. IP Version Control (-4)"
+Write-TestHeader "67. IP Version Control (-4)"
 $result = Invoke-CurlTest "-s -4 $baseUrl/get"
 if ($result.ExitCode -eq 0) {
     Write-Pass "IPv4 enforcement succeeded."
@@ -1365,10 +1365,10 @@ if ($result.ExitCode -eq 0) {
 }
 
 # ----------------------------------------------------------------
-# Test 64: UNIX Domain Sockets
+# Test 68: UNIX Domain Sockets
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "64. UNIX Domain Sockets"
+Write-TestHeader "68. UNIX Domain Sockets"
 # This might be skipped if the server doesn't support it, but let's see if curl accepts the flag.
 $result = Invoke-CurlTest "-sS --unix-socket /tmp/nonexistent.sock http://localhost/get" -ReturnStderr
 if ($result.ExitCode -ne 0 -and ($result.Stderr -match "socket" -or $result.Stderr -match "connect" -or $result.ExitCode -eq 7)) {
@@ -1378,10 +1378,10 @@ if ($result.ExitCode -ne 0 -and ($result.Stderr -match "socket" -or $result.Stde
 }
 
 # ----------------------------------------------------------------
-# Test 65: DNS-over-HTTPS (DoH)
+# Test 69: DNS-over-HTTPS (DoH)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "65. DNS-over-HTTPS (DoH)"
+Write-TestHeader "69. DNS-over-HTTPS (DoH)"
 $result = Invoke-CurlTest "-s --doh-url $baseUrl/dns-query $baseUrl/get" -ReturnStderr
 # Curl might fail because dns-query doesn't return real DNS records, but it should try.
 if ($result.ExitCode -ne 0 -and ($result.Stderr -match "DOH" -or $result.Stderr -match "resolver")) {
@@ -1393,10 +1393,10 @@ if ($result.ExitCode -ne 0 -and ($result.Stderr -match "DOH" -or $result.Stderr 
 }
 
 # ----------------------------------------------------------------
-# Test 66: Advanced Multipart Form Data (Metadata)
+# Test 70: Advanced Multipart Form Data (Metadata)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "66. Advanced Multipart Form Data (Metadata)"
+Write-TestHeader "70. Advanced Multipart Form Data (Metadata)"
 $testFile = Join-Path $scriptDir "metadata.txt"
 "content" | Out-File $testFile -Encoding ascii
 try {
@@ -1411,10 +1411,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 67: Conditional GET
+# Test 71: Conditional GET
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "67. Conditional GET"
+Write-TestHeader "71. Conditional GET"
 $result = Invoke-CurlTest "-s -z `"Fri, 13 Mar 2026 12:00:00 GMT`" $baseUrl/get" -ReturnStderr
 # Server should return 304 (empty body)
 if ($result.ExitCode -eq 0 -and $result.Stdout.Length -eq 0) {
@@ -1424,10 +1424,10 @@ if ($result.ExitCode -eq 0 -and $result.Stdout.Length -eq 0) {
 }
 
 # ----------------------------------------------------------------
-# Test 68: Resuming with Fixed Offset
+# Test 72: Resuming with Fixed Offset
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "68. Resuming with Fixed Offset (-C 5)"
+Write-TestHeader "72. Resuming with Fixed Offset (-C 5)"
 $result = Invoke-CurlTest "-s -C 5 $baseUrl/range/20"
 # range/20 is "abcdefghijklmnopqrst". Offset 5 should start at 'f'.
 if ($result.Stdout -match "^fghij") {
@@ -1437,10 +1437,10 @@ if ($result.Stdout -match "^fghij") {
 }
 
 # ----------------------------------------------------------------
-# Test 69: Expect 100-continue
+# Test 73: Expect 100-continue
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "69. Expect 100-continue"
+Write-TestHeader "73. Expect 100-continue"
 $result = Invoke-CurlTest "-s -d `"some data`" -H `"Expect: 100-continue`" $baseUrl/post"
 if ($result.Stdout -match '"data":\s*"some data"') {
     Write-Pass "Expect 100-continue handled correctly."
@@ -1449,10 +1449,10 @@ if ($result.Stdout -match '"data":\s*"some data"') {
 }
 
 # ----------------------------------------------------------------
-# Test 70: URL Globbing with Brackets (Ranges)
+# Test 74: URL Globbing with Brackets (Ranges)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "70. URL Globbing with Brackets (Ranges)"
+Write-TestHeader "74. URL Globbing with Brackets (Ranges)"
 $result = Invoke-CurlTest "-s `"$baseUrl/status/[200-201]`""
 if ($result.Stdout -match "Status: 200" -and $result.Stdout -match "Status: 201") {
     Write-Pass "URL globbing with brackets [200-201] succeeded."
@@ -1461,10 +1461,10 @@ if ($result.Stdout -match "Status: 200" -and $result.Stdout -match "Status: 201"
 }
 
 # ----------------------------------------------------------------
-# Test 71: Comprehensive Write-out Variables
+# Test 75: Comprehensive Write-out Variables
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "71. Comprehensive Write-out Variables"
+Write-TestHeader "75. Comprehensive Write-out Variables"
 $result = Invoke-CurlTest "-s -o /dev/null -w `"URL:%{url_effective} Type:%{content_type} IP:%{remote_ip}`" $baseUrl/get"
 if ($result.Stdout -match "URL:http" -and $result.Stdout -match "Type:application/json" -and $result.Stdout -match "IP:127.0.0.1") {
     Write-Pass "Comprehensive write-out variables reported correctly."
@@ -1473,10 +1473,10 @@ if ($result.Stdout -match "URL:http" -and $result.Stdout -match "Type:applicatio
 }
 
 # ----------------------------------------------------------------
-# Test 72: Detailed Tracing
+# Test 76: Detailed Tracing
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "72. Detailed Tracing (--trace-ascii)"
+Write-TestHeader "76. Detailed Tracing (--trace-ascii)"
 $traceFile = Join-Path $scriptDir "test_trace.txt"
 try {
     $result = Invoke-CurlTest "-s --trace-ascii `"$traceFile`" $baseUrl/get"
@@ -1495,10 +1495,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 73: Specific Redirect Handling (301, 308)
+# Test 77: Specific Redirect Handling (301, 308)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "73. Specific Redirect Handling (301, 308)"
+Write-TestHeader "77. Specific Redirect Handling (301, 308)"
 $result301 = Invoke-CurlTest "-s -L -d `"data`" $baseUrl/redirect-301"
 $result308 = Invoke-CurlTest "-s -L -d `"data`" $baseUrl/redirect-308"
 $passed301 = $result301.Stdout -match "url.*get"
@@ -1510,10 +1510,10 @@ if ($passed301 -and $passed308) {
 }
 
 # ----------------------------------------------------------------
-# Test 74: Handling 204 No Content
+# Test 78: Handling 204 No Content
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "74. Handling 204 No Content"
+Write-TestHeader "78. Handling 204 No Content"
 $result = Invoke-CurlTest "-s -o /dev/null -w `"%{http_code}`" $baseUrl/status/204"
 if ($result.Stdout.Trim() -eq "204") {
     Write-Pass "Correctly handled 204 No Content response."
@@ -1522,10 +1522,10 @@ if ($result.Stdout.Trim() -eq "204") {
 }
 
 # ----------------------------------------------------------------
-# Test 75: Multiple Headers with same name (Server to Client)
+# Test 79: Multiple Headers with same name (Server to Client)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "75. Multiple Headers with Same Name (Server to Client)"
+Write-TestHeader "79. Multiple Headers with Same Name (Server to Client)"
 $result = Invoke-CurlTest "-s -i $baseUrl/multiple-headers"
 if ($result.Stdout -match "Set-Cookie: cookie1=value1" -and $result.Stdout -match "Set-Cookie: cookie2=value2" -and $result.Stdout -match "Link:.*rel=`"next`"" -and $result.Stdout -match "Link:.*rel=`"prev`"") {
     Write-Pass "Multiple headers with the same name received correctly."
@@ -1534,10 +1534,10 @@ if ($result.Stdout -match "Set-Cookie: cookie1=value1" -and $result.Stdout -matc
 }
 
 # ----------------------------------------------------------------
-# Test 76: Chunked Transfer Encoding
+# Test 80: Chunked Transfer Encoding
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "76. Chunked Transfer Encoding"
+Write-TestHeader "80. Chunked Transfer Encoding"
 $result = Invoke-CurlTest "-s $baseUrl/chunked"
 if ($result.Stdout -match "chunk 0" -and $result.Stdout -match "chunk 4") {
     Write-Pass "Chunked transfer encoding response received and reassembled."
@@ -1546,10 +1546,10 @@ if ($result.Stdout -match "chunk 0" -and $result.Stdout -match "chunk 4") {
 }
 
 # ----------------------------------------------------------------
-# Test 77: Decompression Body Verification
+# Test 81: Decompression Body Verification
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "77. Decompression Body Verification"
+Write-TestHeader "81. Decompression Body Verification"
 $result = Invoke-CurlTest "-s --compressed $baseUrl/decompressed"
 try {
     $json = $result.Stdout | ConvertFrom-Json
@@ -1563,10 +1563,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 78: 303 See Other Redirect
+# Test 82: 303 See Other Redirect
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "78. 303 See Other Redirect (Method change to GET)"
+Write-TestHeader "82. 303 See Other Redirect (Method change to GET)"
 # POST to 303 should result in a GET to the location
 $result = Invoke-CurlTest "-s -L -d `"data`" $baseUrl/redirect-303"
 try {
@@ -1582,10 +1582,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 79: Relative URL Redirects
+# Test 83: Relative URL Redirects
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "79. Relative URL Redirects"
+Write-TestHeader "83. Relative URL Redirects"
 $result = Invoke-CurlTest "-s -L $baseUrl/redirect-relative"
 if ($result.Stdout -match "`"url`":\s*`"$baseUrl/get`"") {
     Write-Pass "Handled relative URL in Location header correctly."
@@ -1594,10 +1594,10 @@ if ($result.Stdout -match "`"url`":\s*`"$baseUrl/get`"") {
 }
 
 # ----------------------------------------------------------------
-# Test 80: Protocol Switching (HTTP to HTTPS)
+# Test 84: Protocol Switching (HTTP to HTTPS)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "80. Protocol Switching (HTTP to HTTPS)"
+Write-TestHeader "84. Protocol Switching (HTTP to HTTPS)"
 $result = Invoke-CurlTest "-s -L -k $baseUrl/redirect-to?url=$httpsBaseUrl/get"
 if ($result.Stdout -match "`"url`":\s*`"$httpsBaseUrl/get`"") {
     Write-Pass "Followed redirect from HTTP to HTTPS successfully."
@@ -1606,10 +1606,10 @@ if ($result.Stdout -match "`"url`":\s*`"$httpsBaseUrl/get`"") {
 }
 
 # ----------------------------------------------------------------
-# Test 81: --noproxy Support
+# Test 85: --noproxy Support
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "81. --noproxy Support"
+Write-TestHeader "85. --noproxy Support"
 $oldProxy = $env:http_proxy
 $env:http_proxy = "http://invalid-proxy:9999"
 try {
@@ -1624,10 +1624,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 82: Case-Insensitivity of Proxy Environment Variables
+# Test 86: Case-Insensitivity of Proxy Environment Variables
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "82. Case-Insensitivity of Proxy Environment Variables"
+Write-TestHeader "86. Case-Insensitivity of Proxy Environment Variables"
 # On Linux, curl ignores uppercase HTTP_PROXY for security (HTTPoxy).
 # However, ALL_PROXY / all_proxy are typically both supported.
 $oldProxy = $env:ALL_PROXY
@@ -1645,10 +1645,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 83: HTTPS over HTTP Proxy (Tunneling)
+# Test 87: HTTPS over HTTP Proxy (Tunneling)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "83. HTTPS over HTTP Proxy (Tunneling)"
+Write-TestHeader "87. HTTPS over HTTP Proxy (Tunneling)"
 $result = Invoke-CurlTest "-s -k -x http://127.0.0.1:$proxyPort $httpsBaseUrl/get"
 try {
     $json = $result.Stdout | ConvertFrom-Json
@@ -1662,10 +1662,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 84: Exit Code Specificity
+# Test 88: Exit Code Specificity
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "84. Exit Code Specificity (DNS Failure)"
+Write-TestHeader "88. Exit Code Specificity (DNS Failure)"
 $result = Invoke-CurlTest "-s http://this-domain-does-not-exist.invalid"
 if ($result.ExitCode -eq 6) {
     Write-Pass "Correctly returned exit code 6 for DNS failure."
@@ -1674,10 +1674,10 @@ if ($result.ExitCode -eq 6) {
 }
 
 # ----------------------------------------------------------------
-# Test 85: Standard CLI Flags (--help, --version)
+# Test 89: Standard CLI Flags (--help, --version)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "85. Standard CLI Flags (--help, --version)"
+Write-TestHeader "89. Standard CLI Flags (--help, --version)"
 $resHelp = Invoke-CurlTest "--help"
 $resVer = Invoke-CurlTest "--version"
 if ($resHelp.Stdout -match "Usage:" -and $resVer.Stdout -match "curl") {
@@ -1687,10 +1687,10 @@ if ($resHelp.Stdout -match "Usage:" -and $resVer.Stdout -match "curl") {
 }
 
 # ----------------------------------------------------------------
-# Test 86: Combining -i and -o
+# Test 90: Combining -i and -o
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "86. Combining -i and -o"
+Write-TestHeader "90. Combining -i and -o"
 $outFile = Join-Path $scriptDir "test_io.txt"
 try {
     $result = Invoke-CurlTest "-s -i -o `"$outFile`" $baseUrl/get"
@@ -1709,10 +1709,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 87: Multiple -o flags for Multiple URLs
+# Test 91: Multiple -o flags for Multiple URLs
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "87. Multiple -o flags for Multiple URLs"
+Write-TestHeader "91. Multiple -o flags for Multiple URLs"
 $out1 = Join-Path $scriptDir "out1.txt"
 $out2 = Join-Path $scriptDir "out2.txt"
 try {
@@ -1732,10 +1732,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 88: --data-raw Flag
+# Test 92: --data-raw Flag
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "88. --data-raw Flag"
+Write-TestHeader "92. --data-raw Flag"
 $result = Invoke-CurlTest "-s --data-raw `"@literal`" $baseUrl/post-data-raw"
 if ($result.Stdout -match "`"@literal`"") {
     Write-Pass "--data-raw sent @ character literally."
@@ -1744,10 +1744,10 @@ if ($result.Stdout -match "`"@literal`"") {
 }
 
 # ----------------------------------------------------------------
-# Test 142: --data-raw with Newlines
+# Test 93: --data-raw with Newlines
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "142. --data-raw with Newlines"
+Write-TestHeader "93. --data-raw with Newlines"
 # Standard curl --data-raw preserves newlines
 $data = "line1`nline2"
 $result = Invoke-CurlTest "-s --data-raw `"$data`" $baseUrl/post-data-raw"
@@ -1758,10 +1758,10 @@ if ($result.Stdout -match "line1\\nline2") {
 }
 
 # ----------------------------------------------------------------
-# Test 143: -d with Newlines (Literal String)
+# Test 94: -d with Newlines (Literal String)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "143. -d with Newlines (Literal String)"
+Write-TestHeader "94. -d with Newlines (Literal String)"
 # Standard curl -d preserves newlines when provided literally on command line
 $data = "line1`nline2"
 $result = Invoke-CurlTest "-s -d `"$data`" $baseUrl/post-data-raw"
@@ -1772,10 +1772,10 @@ if ($result.Stdout -match "line1\\nline2") {
 }
 
 # ----------------------------------------------------------------
-# Test 89: Uploading from Stdin with -T -
+# Test 95: Uploading from Stdin with -T -
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "89. Uploading from Stdin with -T -"
+Write-TestHeader "95. Uploading from Stdin with -T -"
 $result = Invoke-CurlTest "-s -T - $baseUrl/put" -Stdin "upload from stdin"
 if ($result.Stdout -match "upload from stdin") {
     Write-Pass "Successfully uploaded data from stdin using -T -."
@@ -1784,10 +1784,10 @@ if ($result.Stdout -match "upload from stdin") {
 }
 
 # ----------------------------------------------------------------
-# Test 90: Multiple Headers with Same Name (Client to Server)
+# Test 96: Multiple Headers with Same Name (Client to Server)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "90. Multiple Headers with Same Name (Client to Server)"
+Write-TestHeader "96. Multiple Headers with Same Name (Client to Server)"
 $result = Invoke-CurlTest "-s -H `"X-Multi: value1`" -H `"X-Multi: value2`" $baseUrl/headers"
 try {
     $json = $result.Stdout | ConvertFrom-Json
@@ -1801,10 +1801,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 91: Cookie Domain Scoping
+# Test 97: Cookie Domain Scoping
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "91. Cookie Domain Scoping"
+Write-TestHeader "97. Cookie Domain Scoping"
 $cookieFile = Join-Path $scriptDir "cookies_scope.txt"
 try {
     Invoke-CurlTest "-s -c `"$cookieFile`" $baseUrl/cookies/domain" | Out-Null
@@ -1819,10 +1819,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 92: Cookie Expiration
+# Test 98: Cookie Expiration
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "92. Cookie Expiration"
+Write-TestHeader "98. Cookie Expiration"
 $cookieFile = Join-Path $scriptDir "cookies_expire.txt"
 try {
     Invoke-CurlTest "-s -c `"$cookieFile`" $baseUrl/cookies/expire" | Out-Null
@@ -1837,10 +1837,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 93: --create-dirs
+# Test 99: --create-dirs
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "93. --create-dirs"
+Write-TestHeader "99. --create-dirs"
 $nestedDir = Join-Path $scriptDir "nested/dir/test"
 $nestedFile = Join-Path $nestedDir "file.txt"
 try {
@@ -1855,10 +1855,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 94: --output-dir
+# Test 100: --output-dir
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "94. --output-dir"
+Write-TestHeader "100. --output-dir"
 $outDir = Join-Path $scriptDir "output_dir_test"
 if (-not (Test-Path $outDir)) { New-Item -ItemType Directory $outDir | Out-Null }
 try {
@@ -1874,10 +1874,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 95: -J / --remote-header-name
+# Test 101: -J / --remote-header-name
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "95. -J / --remote-header-name"
+Write-TestHeader "101. -J / --remote-header-name"
 try {
     $tempDir = Join-Path $scriptDir "temp_j_test"
     if (-not (Test-Path $tempDir)) { New-Item -ItemType Directory $tempDir | Out-Null }
@@ -1897,10 +1897,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 96: -R / --remote-time
+# Test 102: -R / --remote-time
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "96. -R / --remote-time"
+Write-TestHeader "102. -R / --remote-time"
 $remoteFile = Join-Path $scriptDir "remote_time.txt"
 try {
     $result = Invoke-CurlTest "-s -R -o `"$remoteFile`" $baseUrl/remote-time"
@@ -1920,10 +1920,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 97: --post301
+# Test 103: --post301
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "97. --post301"
+Write-TestHeader "103. --post301"
 $result = Invoke-CurlTest "-s -L --post301 -d `"data=123`" $baseUrl/redirect-301-post"
 if ($result.Stdout -match "`"data`":\s?`"data=123`"") {
     Write-Pass "--post301 preserved POST method after 301 redirect."
@@ -1932,10 +1932,10 @@ if ($result.Stdout -match "`"data`":\s?`"data=123`"") {
 }
 
 # ----------------------------------------------------------------
-# Test 98: --post302
+# Test 104: --post302
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "98. --post302"
+Write-TestHeader "104. --post302"
 $result = Invoke-CurlTest "-s -L --post302 -d `"data=123`" $baseUrl/redirect-302-post"
 if ($result.Stdout -match "`"data`":\s?`"data=123`"") {
     Write-Pass "--post302 preserved POST method after 302 redirect."
@@ -1944,10 +1944,10 @@ if ($result.Stdout -match "`"data`":\s?`"data=123`"") {
 }
 
 # ----------------------------------------------------------------
-# Test 99: --post303
+# Test 105: --post303
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "99. --post303"
+Write-TestHeader "105. --post303"
 $result = Invoke-CurlTest "-s -L --post303 -d `"data=123`" $baseUrl/redirect-303-post"
 if ($result.Stdout -match "`"data`":\s?`"data=123`"") {
     Write-Pass "--post303 preserved POST method after 303 redirect."
@@ -1956,10 +1956,10 @@ if ($result.Stdout -match "`"data`":\s?`"data=123`"") {
 }
 
 # ----------------------------------------------------------------
-# Test 100: --location-trusted
+# Test 106: --location-trusted
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "100. --location-trusted"
+Write-TestHeader "106. --location-trusted"
 $result = Invoke-CurlTest "-s -L -u user:password --location-trusted http://127.0.0.1:$httpPort/redirect-to?url=http://localhost:$httpPort/basic-auth-check"
 if ($result.Stdout -match "Basic dXNlcjpwYXNzd29yZA==") {
     Write-Pass "--location-trusted passed credentials to redirected host."
@@ -1968,10 +1968,10 @@ if ($result.Stdout -match "Basic dXNlcjpwYXNzd29yZA==") {
 }
 
 # ----------------------------------------------------------------
-# Test 101: --retry-connrefused
+# Test 107: --retry-connrefused
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "101. --retry-connrefused"
+Write-TestHeader "107. --retry-connrefused"
 $closedPort = 59999
 $start = Get-Date
 $result = Invoke-CurlTest "-s --retry 1 --retry-connrefused --retry-delay 1 http://127.0.0.1:$closedPort"
@@ -1984,10 +1984,10 @@ if ($duration -ge 1) {
 }
 
 # ----------------------------------------------------------------
-# Test 102: --retry-all-errors
+# Test 108: --retry-all-errors
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "102. --retry-all-errors"
+Write-TestHeader "108. --retry-all-errors"
 $start = Get-Date
 $result = Invoke-CurlTest "-s -f --retry 1 --retry-all-errors --retry-delay 1 $baseUrl/status/404"
 $end = Get-Date
@@ -1999,10 +1999,10 @@ if ($duration -ge 1) {
 }
 
 # ----------------------------------------------------------------
-# Test 102b: --retry-all-errors should NOT retry on success
+# Test 109: --retry-all-errors should NOT retry on success
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "102b. --retry-all-errors should NOT retry on success"
+Write-TestHeader "109. --retry-all-errors should NOT retry on success"
 $start = Get-Date
 $result = Invoke-CurlTest "-s --retry 1 --retry-all-errors --retry-delay 1 $baseUrl/get"
 $end = Get-Date
@@ -2014,10 +2014,10 @@ if ($duration -lt 0.8) {
 }
 
 # ----------------------------------------------------------------
-# Test 103: --fail-early
+# Test 110: --fail-early
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "103. --fail-early"
+Write-TestHeader "110. --fail-early"
 $result = Invoke-CurlTest "-s --fail-early http://127.0.0.1:1 $baseUrl/get"
 if ($result.ExitCode -ne 0 -and $result.Stdout -notmatch "url") {
     Write-Pass "--fail-early stopped after first failure."
@@ -2026,10 +2026,10 @@ if ($result.ExitCode -ne 0 -and $result.Stdout -notmatch "url") {
 }
 
 # ----------------------------------------------------------------
-# Test 104: IPv6 forcing (-6)
+# Test 111: IPv6 forcing (-6)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "104. IPv6 forcing (-6)"
+Write-TestHeader "111. IPv6 forcing (-6)"
 $result = Invoke-CurlTest "-s -6 http://[::1]:$httpPort/get"
 if ($result.ExitCode -eq 0) {
     Write-Pass "-6 successfully forced IPv6."
@@ -2038,10 +2038,10 @@ if ($result.ExitCode -eq 0) {
 }
 
 # ----------------------------------------------------------------
-# Test 105: --interface
+# Test 112: --interface
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "105. --interface"
+Write-TestHeader "112. --interface"
 $result = Invoke-CurlTest "-s --interface 127.0.0.1 $baseUrl/get"
 if ($result.ExitCode -eq 0) {
     Write-Pass "--interface 127.0.0.1 worked."
@@ -2050,10 +2050,10 @@ if ($result.ExitCode -eq 0) {
 }
 
 # ----------------------------------------------------------------
-# Test 106: --next
+# Test 113: --next
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "106. --next"
+Write-TestHeader "113. --next"
 $result = Invoke-CurlTest "-s $baseUrl/get --next -d `"data=next`" $baseUrl/post"
 if ($result.Stdout -match "get" -and $result.Stdout -match "data=next") {
     Write-Pass "--next correctly reset options for subsequent URL."
@@ -2062,10 +2062,10 @@ if ($result.Stdout -match "get" -and $result.Stdout -match "data=next") {
 }
 
 # ----------------------------------------------------------------
-# Test 107: Multiple config files (-K)
+# Test 114: Multiple config files (-K)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "107. Multiple config files (-K)"
+Write-TestHeader "114. Multiple config files (-K)"
 $cfg1 = Join-Path $scriptDir "config1.txt"
 $cfg2 = Join-Path $scriptDir "config2.txt"
 try {
@@ -2083,10 +2083,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 108: Reading config from stdin (-K -)
+# Test 115: Reading config from stdin (-K -)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "108. Reading config from stdin (-K -)"
+Write-TestHeader "115. Reading config from stdin (-K -)"
 $result = Invoke-CurlTest "-s -K - $baseUrl/get" -Stdin "user-agent = `"StdinAgent`""
 if ($result.Stdout -match "StdinAgent") {
     Write-Pass "Successfully read config from stdin using -K -."
@@ -2095,10 +2095,10 @@ if ($result.Stdout -match "StdinAgent") {
 }
 
 # ----------------------------------------------------------------
-# Test 109: Cookie Path Scoping
+# Test 116: Cookie Path Scoping
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "109. Cookie Path Scoping"
+Write-TestHeader "116. Cookie Path Scoping"
 $cookieFile = Join-Path $scriptDir "cookies_path.txt"
 try {
     Invoke-CurlTest "-s -c `"$cookieFile`" $baseUrl/cookies/path" | Out-Null
@@ -2115,10 +2115,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 110: --form-string
+# Test 117: --form-string
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "110. --form-string"
+Write-TestHeader "117. --form-string"
 $result = Invoke-CurlTest "-s --form-string `"field=@literal`" $baseUrl/post-form-type"
 if ($result.Stdout -match "`"field`":\s?`"@literal`"") {
     Write-Pass "--form-string sent @ character literally in multipart form."
@@ -2127,10 +2127,10 @@ if ($result.Stdout -match "`"field`":\s?`"@literal`"") {
 }
 
 # ----------------------------------------------------------------
-# Test 111: Content-Type per form field
+# Test 118: Content-Type per form field
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "111. Content-Type per form field"
+Write-TestHeader "118. Content-Type per form field"
 $result = Invoke-CurlTest "-s -F `"field={`"a`":1};type=application/json;filename=test.json`" $baseUrl/post-form-type"
 if ($result.Stdout -match "`"content_type`":\s?`"application/json`"") {
     Write-Pass "Successfully sent custom Content-Type for form field."
@@ -2139,10 +2139,10 @@ if ($result.Stdout -match "`"content_type`":\s?`"application/json`"") {
 }
 
 # ----------------------------------------------------------------
-# Test 112: --max-filesize
+# Test 119: --max-filesize
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "112. --max-filesize"
+Write-TestHeader "119. --max-filesize"
 $result = Invoke-CurlTest "-s --max-filesize 500000 $baseUrl/large-response"
 if ($result.ExitCode -eq 63) {
     Write-Pass "--max-filesize aborted transfer correctly (ExitCode 63)."
@@ -2151,10 +2151,10 @@ if ($result.ExitCode -eq 63) {
 }
 
 # ----------------------------------------------------------------
-# Test 113: --speed-limit and --speed-time
+# Test 120: --speed-limit and --speed-time
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "113. --speed-limit and --speed-time"
+Write-TestHeader "120. --speed-limit and --speed-time"
 $result = Invoke-CurlTest "-s --speed-limit 1000 --speed-time 2 $baseUrl/slow-response"
 if ($result.ExitCode -eq 28) {
     Write-Pass "--speed-limit aborted slow transfer correctly (ExitCode 28)."
@@ -2163,10 +2163,10 @@ if ($result.ExitCode -eq 28) {
 }
 
 # ----------------------------------------------------------------
-# Test 114: --cacert
+# Test 121: --cacert
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "114. --cacert"
+Write-TestHeader "121. --cacert"
 $certFile = Join-Path $scriptDir "server.crt"
 $result = Invoke-CurlTest "-s --cacert `"$certFile`" $httpsBaseUrl/get"
 if ($result.ExitCode -eq 0) {
@@ -2176,10 +2176,10 @@ if ($result.ExitCode -eq 0) {
 }
 
 # ----------------------------------------------------------------
-# Test 115: --pinnedpubkey (Success case - File)
+# Test 122: --pinnedpubkey (Success case - File)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "115. --pinnedpubkey (Success case - File)"
+Write-TestHeader "122. --pinnedpubkey (Success case - File)"
 # Extract public key from cert for curl compatibility
 if (-not (Test-Path $pubkeyFile)) {
     if ($hasOpenSSL) {
@@ -2197,10 +2197,10 @@ if ($result.ExitCode -eq 0) {
 }
 
 # ----------------------------------------------------------------
-# Test 115a: --pinnedpubkey (Success case - Hash)
+# Test 123: --pinnedpubkey (Success case - Hash)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "115a. --pinnedpubkey (Success case - Hash)"
+Write-TestHeader "123. --pinnedpubkey (Success case - Hash)"
 # Extract public key hash from cert using openssl or python
 # Note: we need the DER representation of the PUBLIC KEY, not the certificate or PEM.
 if ($hasOpenSSL) {
@@ -2218,10 +2218,10 @@ if ($result.ExitCode -eq 0) {
 }
 
 # ----------------------------------------------------------------
-# Test 115b: --pinnedpubkey (Failure case - Mismatch)
+# Test 124: --pinnedpubkey (Failure case - Mismatch)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "115b. --pinnedpubkey (Failure case - Mismatch)"
+Write-TestHeader "124. --pinnedpubkey (Failure case - Mismatch)"
 $wrongPubkeyFile = Join-Path $scriptDir "wrong_pubkey.pem"
 try {
     # Generate a dummy public key that won't match
@@ -2242,10 +2242,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 116: OPTIONS Request
+# Test 125: OPTIONS Request
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "116. OPTIONS Request"
+Write-TestHeader "125. OPTIONS Request"
 $result = Invoke-CurlTest "-s -X OPTIONS -i $baseUrl/get"
 if ($result.Stdout -match "Allow:.*TRACE") {
     Write-Pass "OPTIONS request returned correct Allow header."
@@ -2254,10 +2254,10 @@ if ($result.Stdout -match "Allow:.*TRACE") {
 }
 
 # ----------------------------------------------------------------
-# Test 117: TRACE Request
+# Test 126: TRACE Request
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "117. TRACE Request"
+Write-TestHeader "126. TRACE Request"
 $result = Invoke-CurlTest "-s -X TRACE $baseUrl/get"
 if ($result.Stdout -match "TRACE /get HTTP/1.1") {
     Write-Pass "TRACE request echoed the request correctly."
@@ -2266,10 +2266,10 @@ if ($result.Stdout -match "TRACE /get HTTP/1.1") {
 }
 
 # ----------------------------------------------------------------
-# Test 118: HEAD Request with Redirects
+# Test 127: HEAD Request with Redirects
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "118. HEAD Request with Redirects"
+Write-TestHeader "127. HEAD Request with Redirects"
 $result = Invoke-CurlTest "-s -I -L $baseUrl/redirect-to?url=/get"
 if ($result.Stdout -match "HTTP/1.1 200 OK" -and $result.Stdout -match "Content-Type: application/json") {
     Write-Pass "HEAD with -L followed redirect and returned final headers."
@@ -2278,10 +2278,10 @@ if ($result.Stdout -match "HTTP/1.1 200 OK" -and $result.Stdout -match "Content-
 }
 
 # ----------------------------------------------------------------
-# Test 119: Authentication with Username Only (Interactive Prompt Simulation)
+# Test 128: Authentication with Username Only (Interactive Prompt Simulation)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "119. Authentication with Username Only (Interactive Prompt Simulation)"
+Write-TestHeader "128. Authentication with Username Only (Interactive Prompt Simulation)"
 $result = Invoke-CurlTest "-s -u `"user:`" $baseUrl/basic-auth-check"
 if ($result.Stdout -match "`"authorization`":\s?`"Basic dXNlcjo=`"") {
     Write-Pass "Auth with username: (empty password) worked and didn't hang."
@@ -2290,10 +2290,10 @@ if ($result.Stdout -match "`"authorization`":\s?`"Basic dXNlcjo=`"") {
 }
 
 # ----------------------------------------------------------------
-# Test 120: Authentication with Colon in Credentials
+# Test 129: Authentication with Colon in Credentials
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "120. Authentication with Colon in Credentials"
+Write-TestHeader "129. Authentication with Colon in Credentials"
 $result = Invoke-CurlTest "-s -u `"user:pass:word`" $baseUrl/basic-auth-check"
 if ($result.Stdout -match "`"authorization`":\s?`"Basic dXNlcjpwYXNzOndvcmQ=`"") {
     Write-Pass "Auth with colon in password worked."
@@ -2302,10 +2302,10 @@ if ($result.Stdout -match "`"authorization`":\s?`"Basic dXNlcjpwYXNzOndvcmQ=`"")
 }
 
 # ----------------------------------------------------------------
-# Test 121: Silent and Verbose Combined
+# Test 130: Silent and Verbose Combined
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "121. Silent and Verbose Combined"
+Write-TestHeader "130. Silent and Verbose Combined"
 $result = Invoke-CurlTest "-s -v $baseUrl/get"
 if ($result.Stderr -match "> GET /get HTTP/1.1" -and $result.Stdout -match "`"url`":") {
     Write-Pass "Silent and Verbose combined worked (output in stdout, details in stderr)."
@@ -2314,10 +2314,10 @@ if ($result.Stderr -match "> GET /get HTTP/1.1" -and $result.Stdout -match "`"ur
 }
 
 # ----------------------------------------------------------------
-# Test 122: Include Headers with Output File
+# Test 131: Include Headers with Output File
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "122. Include Headers with Output File"
+Write-TestHeader "131. Include Headers with Output File"
 $outFile = Join-Path $scriptDir "test122.txt"
 try {
     Invoke-CurlTest "-s -i -o `"$outFile`" $baseUrl/get" | Out-Null
@@ -2332,10 +2332,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 123: Mixed Source Data in POST
+# Test 132: Mixed Source Data in POST
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "123. Mixed Source Data in POST"
+Write-TestHeader "132. Mixed Source Data in POST"
 $dataFile = Join-Path $scriptDir "data123.txt"
 "param2=val2" | Out-File -FilePath $dataFile -Encoding ascii
 try {
@@ -2350,10 +2350,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 124: Multiple @file Arguments in POST
+# Test 133: Multiple @file Arguments in POST
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "124. Multiple @file Arguments in POST"
+Write-TestHeader "133. Multiple @file Arguments in POST"
 $f1 = Join-Path $scriptDir "f1.txt"
 $f2 = Join-Path $scriptDir "f2.txt"
 "a=1" | Out-File -FilePath $f1 -Encoding ascii
@@ -2371,10 +2371,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 125: Multiple Files in One Form Field
+# Test 134: Multiple Files in One Form Field
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "125. Multiple Files in One Form Field"
+Write-TestHeader "134. Multiple Files in One Form Field"
 $img1 = Join-Path $scriptDir "img1.txt"
 $img2 = Join-Path $scriptDir "img2.txt"
 "content1" | Out-File -FilePath $img1 -Encoding ascii
@@ -2395,10 +2395,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 126: Exit 3: Malformed URL
+# Test 135: Exit 3: Malformed URL
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "126. Exit 3: Malformed URL"
+Write-TestHeader "135. Exit 3: Malformed URL"
 $result = Invoke-CurlTest "`"http://[invalid-url]`""
 if ($result.ExitCode -eq 3) {
     Write-Pass "Correct ExitCode 3 for malformed URL."
@@ -2407,10 +2407,10 @@ if ($result.ExitCode -eq 3) {
 }
 
 # ----------------------------------------------------------------
-# Test 127: Exit 7: Failed to Connect
+# Test 136: Exit 7: Failed to Connect
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "127. Exit 7: Failed to Connect"
+Write-TestHeader "136. Exit 7: Failed to Connect"
 $result = Invoke-CurlTest "http://127.0.0.1:1"
 if ($result.ExitCode -eq 7) {
     Write-Pass "Correct ExitCode 7 for connection refused."
@@ -2419,10 +2419,10 @@ if ($result.ExitCode -eq 7) {
 }
 
 # ----------------------------------------------------------------
-# Test 128: Environment Variable CURL_CA_BUNDLE
+# Test 137: Environment Variable CURL_CA_BUNDLE
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "128. Environment Variable CURL_CA_BUNDLE"
+Write-TestHeader "137. Environment Variable CURL_CA_BUNDLE"
 $oldCaBundle = $env:CURL_CA_BUNDLE
 try {
     $env:CURL_CA_BUNDLE = "nonexistent.pem"
@@ -2440,10 +2440,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 129: Resuming Already Complete Download
+# Test 138: Resuming Already Complete Download
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "129. Resuming Already Complete Download"
+Write-TestHeader "138. Resuming Already Complete Download"
 $resumeFile = Join-Path $scriptDir "resume129.txt"
 # Create a file that is already 10 bytes long (the size of /range/10)
 "abcdefghij" | Out-File -FilePath $resumeFile -NoNewline -Encoding ascii
@@ -2464,10 +2464,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 130: Duplicate Header Prevention (Content-Type)
+# Test 139: Duplicate Header Prevention (Content-Type)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "130. Duplicate Header Prevention (Content-Type)"
+Write-TestHeader "139. Duplicate Header Prevention (Content-Type)"
 # -d normally sets Content-Type to application/x-www-form-urlencoded
 $result = Invoke-CurlTest "-s -d `"param=value`" -H `"Content-Type: application/json`" $baseUrl/post"
 try {
@@ -2483,10 +2483,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 131: Duplicate Header Prevention (User-Agent)
+# Test 140: Duplicate Header Prevention (User-Agent)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "131. Duplicate Header Prevention (User-Agent)"
+Write-TestHeader "140. Duplicate Header Prevention (User-Agent)"
 $result = Invoke-CurlTest "-s -H `"User-Agent: MyCustomAgent/1.0`" $baseUrl/headers"
 try {
     $json = $result.Stdout | ConvertFrom-Json
@@ -2500,10 +2500,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 132: Duplicate Header Prevention (Accept)
+# Test 141: Duplicate Header Prevention (Accept)
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "132. Duplicate Header Prevention (Accept)"
+Write-TestHeader "141. Duplicate Header Prevention (Accept)"
 $result = Invoke-CurlTest "-s -H `"Accept: application/xml`" $baseUrl/headers"
 try {
     $json = $result.Stdout | ConvertFrom-Json
@@ -2517,10 +2517,10 @@ try {
 }
 
 # ----------------------------------------------------------------
-# Test 133: Fail on Server Error with Multiple URLs
+# Test 142: Fail on Server Error with Multiple URLs
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "133. Fail on Server Error with Multiple URLs"
+Write-TestHeader "142. Fail on Server Error with Multiple URLs"
 $result = Invoke-CurlTest "-s -f $baseUrl/status/404 $baseUrl/get"
 # Curl actually returns 0 if the LAST URL succeeds, despite previous HTTP failures with -f
 if ($result.ExitCode -eq 0 -and $result.Stdout -match "url.*get") {
@@ -2530,10 +2530,10 @@ if ($result.ExitCode -eq 0 -and $result.Stdout -match "url.*get") {
 }
 
 # ----------------------------------------------------------------
-# Test 134: Abort on First Error with --fail and --fail-early
+# Test 143: Abort on First Error with --fail and --fail-early
 # ----------------------------------------------------------------
 $totalTests++
-Write-TestHeader "134. Abort on First Error with --fail and --fail-early"
+Write-TestHeader "143. Abort on First Error with --fail and --fail-early"
 $result = Invoke-CurlTest "-s -f --fail-early $baseUrl/status/404 $baseUrl/get"
 if ($result.ExitCode -eq 22 -and $result.Stdout -notmatch "url.*get") {
     Write-Pass "Aborted immediately with --fail and --fail-early."
