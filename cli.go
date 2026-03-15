@@ -208,7 +208,7 @@ func ParseArgs(args []string) []Options {
 			opts.Insecure = true
 		case a == "--compressed":
 			opts.Compressed = true
-		case a == "-G":
+		case a == "-G" || a == "--get":
 			opts.GetMode = true
 		case a == "-Z" || a == "--parallel":
 			opts.Parallel = true
@@ -240,7 +240,7 @@ func ParseArgs(args []string) []Options {
 			if i < len(args) {
 				opts.WriteOut = args[i]
 			}
-		case a == "-c":
+		case a == "-c" || a == "--cookie-jar":
 			i++
 			if i < len(args) {
 				opts.CookieJar = args[i]
@@ -362,7 +362,7 @@ func ParseArgs(args []string) []Options {
 			if i < len(args) {
 				opts.DataArgs = append(opts.DataArgs, args[i])
 			}
-		case a == "-F":
+		case a == "-F" || a == "--form":
 			i++
 			if i < len(args) {
 				opts.FormArgs = append(opts.FormArgs, args[i])

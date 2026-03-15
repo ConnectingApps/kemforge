@@ -21,19 +21,25 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	}
 
 	// Handle -G (GET with data as query params)
-	if opts.GetMode && len(opts.URLEncodeArgs) > 0 {
+	if opts.GetMode && (len(opts.URLEncodeArgs) > 0 || len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.DataRaw) > 0) {
 		u, err := url.Parse(targetURL)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (3) URL parse error: %v\n", err)
 			os.Exit(3)
 		}
 		q := u.Query()
-		for _, arg := range opts.URLEncodeArgs {
+		// Combine all data sources that -G affects
+		allData := append([]string{}, opts.URLEncodeArgs...)
+		allData = append(allData, opts.DataArgs...)
+		allData = append(allData, opts.DataBinary...)
+		allData = append(allData, opts.DataRaw...)
+
+		for _, arg := range allData {
 			parts := strings.SplitN(arg, "=", 2)
 			if len(parts) == 2 {
-				q.Set(parts[0], parts[1])
+				q.Add(parts[0], parts[1])
 			} else {
-				q.Set(arg, "")
+				q.Add(arg, "")
 			}
 		}
 		u.RawQuery = q.Encode()
@@ -45,6 +51,8 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	if method == "" {
 		if opts.HeadReq {
 			method = "HEAD"
+		} else if opts.GetMode {
+			method = "GET"
 		} else if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.DataRaw) > 0 || len(opts.FormArgs) > 0 || len(opts.FormStringArgs) > 0 || opts.JSONData != "" {
 			method = "POST"
 		} else if opts.UploadFile != "" {
@@ -55,7 +63,11 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	}
 
 	// Build request body
-	body, contentType := buildRequestBody(opts)
+	var body io.Reader
+	var contentType string
+	if !opts.GetMode {
+		body, contentType = buildRequestBody(opts)
+	}
 
 	// Build HTTP request
 	req, err := http.NewRequest(method, targetURL, body)

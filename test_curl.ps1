@@ -2564,6 +2564,60 @@ if ($isKemforge) {
 }
 
 # ----------------------------------------------------------------
+# Test 145: --cookie-jar (Long Flag)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "145. --cookie-jar (Long Flag)"
+$cookieFile = Join-Path $scriptDir "test_cookie_jar_long.txt"
+if (Test-Path $cookieFile) { Remove-Item $cookieFile -Force }
+$result = Invoke-CurlTest "-s -L --cookie-jar `"$cookieFile`" $baseUrl/cookies/set/session/longflag"
+if (Test-Path $cookieFile) {
+    $content = Get-Content $cookieFile -Raw
+    if ($content -match "session" -and $content -match "longflag") {
+        Write-Pass "--cookie-jar long flag successfully wrote cookies to file."
+    } else {
+        Write-Fail "--cookie-jar content mismatch. Content: $content"
+    }
+    Remove-Item $cookieFile -Force
+} else {
+    Write-Fail "--cookie-jar long flag failed to create file."
+}
+
+# ----------------------------------------------------------------
+# Test 146: --get (Long Flag)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "146. --get (Long Flag)"
+$result = Invoke-CurlTest "-s --get -d `"param1=val1`" -d `"param2=val2`" $baseUrl/get"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    if ($json.args.param1 -eq "val1" -and $json.args.param2 -eq "val2") {
+        Write-Pass "--get long flag successfully put data in URL."
+    } else {
+        Write-Fail "--get long flag failed. Args: $($json.args | ConvertTo-Json -Compress)"
+    }
+} catch {
+    Write-Fail "Failed to parse JSON response: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 147: --form (Long Flag)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "147. --form (Long Flag)"
+$result = Invoke-CurlTest "-s --form `"field1=value1`" --form `"field2=value2`" $baseUrl/post-form-type"
+try {
+    $json = $result.Stdout | ConvertFrom-Json
+    if ($json.form.field1 -eq "value1" -and $json.form.field2 -eq "value2") {
+        Write-Pass "--form long flag successfully sent multipart form data."
+    } else {
+        Write-Fail "--form long flag failed. Form: $($json.form | ConvertTo-Json -Compress)"
+    }
+} catch {
+    Write-Fail "Failed to parse JSON response: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
 # Stop the local server and print summary
 # ----------------------------------------------------------------
 if (-not $serverProcess.HasExited) { $serverProcess.Kill() }
