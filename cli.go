@@ -90,7 +90,6 @@ type Options struct {
 	RetryConnRefused bool
 	RetryAllErrors   bool
 	FailEarly        bool
-	PQC              bool // --pqc
 }
 
 // ParseArgs parses command-line arguments into an Options struct.
@@ -393,8 +392,6 @@ func ParseArgs(args []string) []Options {
 			opts.RetryAllErrors = true
 		case a == "--fail-early":
 			opts.FailEarly = true
-		case a == "--pqc":
-			opts.PQC = true
 		case a == "--resolve":
 			i++
 			if i < len(args) {

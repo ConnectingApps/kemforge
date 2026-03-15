@@ -37,7 +37,6 @@ func main() {
 			fmt.Println("  -s                 Silent mode")
 			fmt.Println("  --retry <num>      Retry request on transient errors")
 			fmt.Println("  --retry-delay <s>  Wait <seconds> between retries")
-			fmt.Println("  --pqc              Enable Post-Quantum Cryptography (ML-KEM)")
 			fmt.Println("  --help             This help text")
 			fmt.Println("  --version          Show version number and exit")
 			continue
