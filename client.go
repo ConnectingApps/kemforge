@@ -26,11 +26,6 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 		InsecureSkipVerify: opts.Insecure,
 	}
 
-	if opts.PQC {
-		// Go 1.25+ support for ML-KEM
-		tlsConfig.CurvePreferences = []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}
-	}
-
 	if opts.CACert != "" {
 		caCert, err := os.ReadFile(opts.CACert)
 		if err != nil {

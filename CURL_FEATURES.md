@@ -912,7 +912,7 @@ curl -s --cert client.crt --key client.key -k https://127.0.0.1:8444/mtls
 
 ---
 
-## 55.1. Negative mTLS - No Certificate
+## 56. Negative mTLS - No Certificate
 **Description**: Verifies that the server rejects requests that do not provide a client certificate when mTLS is required.
 **Input**:
 ```bash
@@ -923,7 +923,7 @@ curl -s -k https://127.0.0.1:8444/mtls
 
 ---
 
-## 55.2. Negative mTLS - Untrusted Certificate
+## 57. Negative mTLS - Untrusted Certificate
 **Description**: Verifies that the server rejects requests with a client certificate that is not signed by a trusted CA.
 **Input**:
 ```bash
@@ -934,7 +934,7 @@ curl -s -k --cert untrusted.crt --key untrusted.key https://127.0.0.1:8444/mtls
 
 ---
 
-## 55.3. Negative mTLS - Expired Certificate
+## 58. Negative mTLS - Expired Certificate
 **Description**: Verifies that the server rejects requests with an expired client certificate.
 **Input**:
 ```bash
@@ -945,7 +945,7 @@ curl -s -k --cert expired.crt https://127.0.0.1:8444/mtls
 
 ---
 
-## 55.4. mTLS with Encrypted Private Key
+## 59. mTLS with Encrypted Private Key
 **Description**: Supports providing a passphrase for an encrypted private key using the `--pass` flag.
 **Input**:
 ```bash
@@ -961,7 +961,7 @@ curl -s -k --cert client.crt --key enc_client.key --pass "password" https://127.
 
 ---
 
-## 56. Negative SSL Verification
+## 60. Negative SSL Verification
 **Description**: Verifies that `curl` fails to connect to a server with an invalid or self-signed certificate *unless* the `-k` (or `--insecure`) flag is provided.
 **Input**:
 ```bash
@@ -974,7 +974,7 @@ curl: (60) SSL certificate problem: self-signed certificate
 
 ---
 
-## 57. HSTS Support
+## 61. HSTS Support
 **Description**: Respects the `Strict-Transport-Security` header, which informs the client that all subsequent requests to the domain should be made via HTTPS.
 **Input**:
 ```bash
@@ -990,7 +990,7 @@ Strict-Transport-Security: max-age=31536000; includeSubDomains
 
 ---
 
-## 58. Digest Authentication
+## 62. Digest Authentication
 **Description**: Supports Digest Authentication, a more secure challenge-response mechanism than Basic Auth, using the `--digest` flag.
 **Input**:
 ```bash
@@ -1006,7 +1006,7 @@ curl -s --digest -u user:password http://127.0.0.1:8080/digest-auth/user/passwor
 
 ---
 
-## 59. Netrc Support
+## 63. Netrc Support
 **Description**: Automatically reads user credentials from a `.netrc` file (or specified file) using the `-n` (or `--netrc`) flag.
 **Input**:
 ```bash
@@ -1023,7 +1023,7 @@ curl -s -n http://127.0.0.1:8080/basic-auth/user/password
 
 ---
 
-## 60. Environment Variable Proxy Support
+## 64. Environment Variable Proxy Support
 **Description**: Respects standard environment variables like `http_proxy`, `https_proxy`, and `no_proxy` for routing requests.
 **Input**:
 ```bash
@@ -1035,7 +1035,7 @@ curl -s http://127.0.0.1:8080/get
 
 ---
 
-## 61. SOCKS Proxy Support
+## 65. SOCKS Proxy Support
 **Description**: Routes requests through SOCKS4 or SOCKS5 proxies using the `-x` flag.
 **Input**:
 ```bash
@@ -1046,7 +1046,7 @@ curl -s -x socks5://localhost:9050 http://127.0.0.1:8080/get
 
 ---
 
-## 62. Proxy-Specific Authentication
+## 66. Proxy-Specific Authentication
 **Description**: Provides credentials specifically for the proxy server using the `--proxy-user` flag, independent of the target server's authentication.
 **Input**:
 ```bash
@@ -1057,7 +1057,7 @@ curl -s -x http://proxy:8080 --proxy-user puser:ppass http://127.0.0.1:8080/get
 
 ---
 
-## 63. IP Version Control (-4 / -6)
+## 67. IP Version Control (-4 / -6)
 **Description**: Forces `curl` to use IPv4 or IPv6 specifically for address resolution and connection using the `-4` or `-6` flags.
 **Input**:
 ```bash
@@ -1068,7 +1068,7 @@ curl -s -4 http://localhost:8080/get
 
 ---
 
-## 64. UNIX Domain Sockets
+## 68. UNIX Domain Sockets
 **Description**: Connects to a server via a UNIX domain socket instead of a network port using the `--unix-socket` flag.
 **Input**:
 ```bash
@@ -1079,7 +1079,7 @@ curl -s --unix-socket /tmp/test.sock http://localhost/get
 
 ---
 
-## 65. DNS-over-HTTPS (DoH)
+## 69. DNS-over-HTTPS (DoH)
 **Description**: Uses a custom DoH resolver for DNS lookups instead of the system default using the `--doh-url` flag.
 **Input**:
 ```bash
@@ -1090,7 +1090,7 @@ curl -s --doh-url https://cloudflare-dns.com/dns-query http://example.com/get
 
 ---
 
-## 66. Advanced Multipart Form Data (Metadata)
+## 70. Advanced Multipart Form Data (Metadata)
 **Description**: Sends multiple multipart form fields with custom metadata like `type` and `filename` using the `-F` flag.
 **Input**:
 ```bash
@@ -1111,7 +1111,7 @@ curl -s -F "file=@test.txt;type=text/plain;filename=remote.txt" http://127.0.0.1
 
 ---
 
-## 67. Conditional GET
+## 71. Conditional GET
 **Description**: Fetches a resource only if it has been modified after a specific time or if the ETag has changed, using the `-z` (or `--time-cond`) flag.
 **Input**:
 ```bash
@@ -1122,7 +1122,7 @@ curl -s -z "Fri, 13 Mar 2026 12:00:00 GMT" http://127.0.0.1:8080/get
 
 ---
 
-## 68. Resuming with Fixed Offset
+## 72. Resuming with Fixed Offset
 **Description**: Resumes a transfer starting from a manually specified byte offset using the `-C <offset>` flag.
 **Input**:
 ```bash
@@ -1133,7 +1133,7 @@ curl -s -C 100 http://127.0.0.1:8080/range/1024
 
 ---
 
-## 69. Expect 100-continue
+## 73. Expect 100-continue
 **Description**: Verifies how the tool handles the `Expect: 100-continue` header, which is common in large POST requests.
 **Input**:
 ```bash
@@ -1144,7 +1144,7 @@ curl -s -d "large data..." -H "Expect: 100-continue" http://127.0.0.1:8080/post
 
 ---
 
-## 70. URL Globbing with Brackets (Ranges)
+## 74. URL Globbing with Brackets (Ranges)
 **Description**: Fetches multiple resources using numeric or alphabetical ranges in the URL.
 **Input**:
 ```bash
@@ -1155,7 +1155,7 @@ curl -s "http://127.0.0.1:8080/status/[200-201]"
 
 ---
 
-## 71. Comprehensive Write-out Variables
+## 75. Comprehensive Write-out Variables
 **Description**: Uses a wider set of variables with the `-w` flag to extract detailed request/response timing and metadata.
 **Input**:
 ```bash
@@ -1168,7 +1168,7 @@ DNS: 0.001, Connect: 0.002, Size: 253, URL: http://127.0.0.1:8080/get
 
 ---
 
-## 72. Detailed Tracing
+## 76. Detailed Tracing
 **Description**: Provides low-level protocol tracing for debugging using the `--trace` or `--trace-ascii` flags.
 **Input**:
 ```bash
@@ -1179,7 +1179,7 @@ curl -s --trace-ascii trace.txt http://127.0.0.1:8080/get
 
 ---
 
-### 73. Specific Redirect Handling (301, 308)
+### 77. Specific Redirect Handling (301, 308)
 **Description**: Specifically tests permanent redirects (301 and 308) to ensure correct method preservation or conversion.
 **Input**:
 ```bash
@@ -1190,7 +1190,7 @@ curl -s -L -d "data" http://127.0.0.1:8080/redirect-308
 
 ---
 
-### 74. Handling 204 No Content
+### 78. Handling 204 No Content
 **Description**: Verifies that the tool correctly handles responses with no body (204 No Content).
 **Input**:
 ```bash
@@ -1203,7 +1203,7 @@ curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/status/204
 
 ---
 
-### 75. Multiple Headers with Same Name (Server to Client)
+### 79. Multiple Headers with Same Name (Server to Client)
 **Description**: Tests how the tool handles receiving multiple headers with the same name from the server, such as multiple `Set-Cookie` or `Link` headers.
 **Input**:
 ```bash
@@ -1214,7 +1214,7 @@ curl -s -i http://127.0.0.1:8080/multiple-headers
 
 ---
 
-### 76. Chunked Transfer Encoding
+### 80. Chunked Transfer Encoding
 **Description**: Verifies that the tool correctly handles and reassembles responses using `Transfer-Encoding: chunked`.
 **Input**:
 ```bash
@@ -1225,7 +1225,7 @@ curl -s http://127.0.0.1:8080/chunked
 
 ---
 
-### 77. Decompression Body Verification
+### 81. Decompression Body Verification
 **Description**: Verifies that the tool correctly decompresses a gzipped response body when using the `--compressed` flag.
 **Input**:
 ```bash
@@ -1236,7 +1236,7 @@ curl -s --compressed http://127.0.0.1:8080/decompressed
 
 ---
 
-### 78. 303 See Other Redirect
+### 82. 303 See Other Redirect
 **Description**: Tests the `303 See Other` redirect, which should always convert the request method to `GET`.
 **Input**:
 ```bash
@@ -1247,7 +1247,7 @@ curl -s -L -X POST -d "data" http://127.0.0.1:8080/redirect-303
 
 ---
 
-### 79. Relative URL Redirects
+### 83. Relative URL Redirects
 **Description**: Verifies that the tool correctly handles a `Location` header that contains a relative path.
 **Input**:
 ```bash
@@ -1258,7 +1258,7 @@ curl -s -L http://127.0.0.1:8080/redirect-relative
 
 ---
 
-### 80. Protocol Switching
+### 84. Protocol Switching
 **Description**: Tests redirects that move from `http://` to `https://`.
 **Input**:
 ```bash
@@ -1269,7 +1269,7 @@ curl -s -L -k http://127.0.0.1:8080/redirect-to?url=https://127.0.0.1:8443/get
 
 ---
 
-### 81. --noproxy Support
+### 85. --noproxy Support
 **Description**: Tests the ability to bypass the proxy for specific domains using the `--noproxy` flag.
 **Input**:
 ```bash
@@ -1281,7 +1281,7 @@ curl -s --noproxy 127.0.0.1 http://127.0.0.1:8080/get
 
 ---
 
-### 82. Case-Insensitivity of Proxy Environment Variables
+### 86. Case-Insensitivity of Proxy Environment Variables
 **Description**: Verifies that the tool respects proxy environment variables regardless of case (e.g., `all_proxy` vs `ALL_PROXY`). Note: On Linux, `HTTP_PROXY` may be ignored for security reasons, so `ALL_PROXY` is used for testing.
 **Input**:
 ```bash
@@ -1293,7 +1293,7 @@ curl -s http://example.com/get
 
 ---
 
-### 83. HTTPS over HTTP Proxy (Tunneling)
+### 87. HTTPS over HTTP Proxy (Tunneling)
 **Description**: Tests `CONNECT` requests through a proxy to reach an HTTPS destination.
 **Input**:
 ```bash
@@ -1304,7 +1304,7 @@ curl -s -k -x http://127.0.0.1:8081 https://127.0.0.1:8443/get
 
 ---
 
-### 84. Exit Code Specificity
+### 88. Exit Code Specificity
 **Description**: Verifies that the tool returns specific exit codes for different types of failures (e.g., 6 for DNS failure).
 **Input**:
 ```bash
@@ -1315,7 +1315,7 @@ curl -s http://non-existent-domain.invalid
 
 ---
 
-### 85. Standard CLI Flags (--help, --version)
+### 89. Standard CLI Flags (--help, --version)
 **Description**: Ensures the tool provides standard help and version information.
 **Input**:
 ```bash
@@ -1327,7 +1327,7 @@ curl --version
 
 ---
 
-### 86. Combining -i and -o
+### 90. Combining -i and -o
 **Description**: Verifies behavior when including headers in output (`-i`) while saving to a file (`-o`).
 **Input**:
 ```bash
@@ -1338,7 +1338,7 @@ curl -s -i -o response.txt http://127.0.0.1:8080/get
 
 ---
 
-### 87. Multiple -o flags for Multiple URLs
+### 91. Multiple -o flags for Multiple URLs
 **Description**: Verifies that each URL can be saved to a specific file when fetching multiple URLs.
 **Input**:
 ```bash
@@ -1349,18 +1349,42 @@ curl -s http://127.0.0.1:8080/get -o out1.txt http://127.0.0.1:8080/headers -o o
 
 ---
 
-### 88. --data-raw Flag
-**Description**: Sends data that starts with `@` as a literal string instead of a filename.
+### 92. --data-raw Flag
+**Description**: Sends data with `@` character literally using `--data-raw`.
 **Input**:
 ```bash
-curl -s --data-raw "@literal" http://127.0.0.1:8080/post
+curl -s --data-raw "@literal" http://127.0.0.1:8080/post-data-raw
 ```
 **Output**:
-(JSON response showing `@literal` in the data/form fields.)
+(The response will contain the literal data "@literal".)
 
 ---
 
-### 89. Uploading from Stdin with -T -
+### 93. --data-raw with Newlines
+**Description**: Standard curl --data-raw preserves newlines.
+**Input**:
+```bash
+curl -s --data-raw "line1
+line2" http://127.0.0.1:8080/post-data-raw
+```
+**Output**:
+(The response will contain the literal string "line1\nline2".)
+
+---
+
+### 94. -d with Newlines (Literal String)
+**Description**: Standard curl -d preserves newlines when provided literally on the command line.
+**Input**:
+```bash
+curl -s -d "line1
+line2" http://127.0.0.1:8080/post-data-raw
+```
+**Output**:
+(The response will contain the literal string "line1\nline2".)
+
+---
+
+### 95. Uploading from Stdin with -T -
 **Description**: Tests uploading data from standard input using the `-T -` flag.
 **Input**:
 ```bash
@@ -1371,7 +1395,7 @@ echo "upload data" | curl -s -T - http://127.0.0.1:8080/put
 
 ---
 
-### 90. Multiple Headers with Same Name (Client to Server)
+### 96. Multiple Headers with Same Name (Client to Server)
 **Description**: Ensures that sending multiple `-H` flags with the same name results in all of them being sent.
 **Input**:
 ```bash
@@ -1382,7 +1406,7 @@ curl -s -H "X-Multi: value1" -H "X-Multi: value2" http://127.0.0.1:8080/headers
 
 ---
 
-### 91. Cookie Domain and Path Scoping
+### 97. Cookie Domain and Path Scoping
 **Description**: Verifies that cookies are only sent back if the request matches the cookie's domain and path.
 **Input**:
 ```bash
@@ -1394,7 +1418,7 @@ curl -s -b cookies.txt http://127.0.0.1:8080/cookies
 
 ---
 
-### 92. Cookie Expiration
+### 98. Cookie Expiration
 **Description**: Verifies that the tool respects cookie expiration.
 **Input**:
 ```bash
@@ -1406,7 +1430,7 @@ curl -s -b cookies.txt http://127.0.0.1:8080/cookies
 
 ---
 
-### 93. Directory Management (`--create-dirs`)
+### 99. Directory Management (`--create-dirs`)
 **Description**: Automatically creates the local directory structure specified in the `-o` path if it doesn't exist.
 **Input**:
 ```bash
@@ -1417,7 +1441,7 @@ curl -s --create-dirs -o nested/dir/file.txt http://127.0.0.1:8080/get
 
 ---
 
-### 94. Output Directory (`--output-dir`)
+### 100. Output Directory (`--output-dir`)
 **Description**: Specifies a base directory for all output files (useful with `-O`).
 **Input**:
 ```bash
@@ -1429,7 +1453,7 @@ curl -s --output-dir my_downloads -O http://127.0.0.1:8080/get
 
 ---
 
-### 95. Remote Filename from Header (`-J`)
+### 101. Remote Filename from Header (`-J`)
 **Description**: Uses the server-provided filename from the `Content-Disposition` header when combined with `-O`.
 **Input**:
 ```bash
@@ -1440,7 +1464,7 @@ curl -s -O -J http://127.0.0.1:8080/content-disposition
 
 ---
 
-### 96. Remote Time Synchronization (`-R`)
+### 102. Remote Time Synchronization (`-R`)
 **Description**: Synchronizes the local file's timestamp with the server's `Last-Modified` time.
 **Input**:
 ```bash
@@ -1451,7 +1475,7 @@ curl -s -R -o local_file.txt http://127.0.0.1:8080/remote-time
 
 ---
 
-### 97. POST to GET conversion control (`--post301`)
+### 103. POST to GET conversion control (`--post301`)
 **Description**: Prevents `curl` from converting a POST request to GET when following a 301 redirect.
 **Input**:
 ```bash
@@ -1462,7 +1486,7 @@ curl -s -L --post301 -d "data=123" http://127.0.0.1:8080/redirect-301-post
 
 ---
 
-### 98. POST to GET conversion control (`--post302`)
+### 104. POST to GET conversion control (`--post302`)
 **Description**: Prevents `curl` from converting a POST request to GET when following a 302 redirect.
 **Input**:
 ```bash
@@ -1473,7 +1497,7 @@ curl -s -L --post302 -d "data=123" http://127.0.0.1:8080/redirect-302-post
 
 ---
 
-### 99. POST to GET conversion control (`--post303`)
+### 105. POST to GET conversion control (`--post303`)
 **Description**: Prevents `curl` from converting a POST request to GET when following a 303 redirect.
 **Input**:
 ```bash
@@ -1484,7 +1508,7 @@ curl -s -L --post303 -d "data=123" http://127.0.0.1:8080/redirect-303-post
 
 ---
 
-### 100. Location Trusted Credentials (`--location-trusted`)
+### 106. Location Trusted Credentials (`--location-trusted`)
 **Description**: Passes credentials (from `-u`) to redirected hosts even when the hostname changes.
 **Input**:
 ```bash
@@ -1495,7 +1519,7 @@ curl -s -L -u user:password --location-trusted http://127.0.0.1:8080/redirect-to
 
 ---
 
-### 101. Retry on Connection Refused (`--retry-connrefused`)
+### 107. Retry on Connection Refused (`--retry-connrefused`)
 **Description**: Retries the request even if the initial connection is refused by the server.
 **Input**:
 ```bash
@@ -1506,7 +1530,7 @@ curl -s --retry 1 --retry-connrefused http://127.0.0.1:59999
 
 ---
 
-### 102. Retry on All Errors (`--retry-all-errors`)
+### 108. Retry on All Errors (`--retry-all-errors`)
 **Description**: Retries on any error, including 404s (which are normally not retried).
 **Input**:
 ```bash
@@ -1517,7 +1541,7 @@ curl -s --retry 1 --retry-all-errors http://127.0.0.1:8080/status/404
 
 ---
 
-### 102b. --retry-all-errors should NOT retry on success
+### 109. --retry-all-errors should NOT retry on success
 **Description**: Verifying that `--retry-all-errors` does not retry when the request succeeds (200 OK).
 **Input**:
 ```bash
@@ -1528,7 +1552,7 @@ curl -s --retry 1 --retry-all-errors --retry-delay 1 http://127.0.0.1:8080/get
 
 ---
 
-### 103. Abort on First Error (`--fail-early`)
+### 110. Abort on First Error (`--fail-early`)
 **Description**: Stops the entire operation on the first error when multiple URLs are provided.
 **Input**:
 ```bash
@@ -1539,7 +1563,7 @@ curl -s --fail-early http://127.0.0.1:1 http://127.0.0.1:8080/get
 
 ---
 
-### 104. IPv6 Forcing (`-6`)
+### 111. IPv6 Forcing (`-6`)
 **Description**: Forces address resolution and connectivity over IPv6.
 **Input**:
 ```bash
@@ -1550,7 +1574,7 @@ curl -s -6 http://[::1]:8080/get
 
 ---
 
-### 105. Interface Binding (`--interface`)
+### 112. Interface Binding (`--interface`)
 **Description**: Binds the request to a specific network interface or IP address.
 **Input**:
 ```bash
@@ -1561,7 +1585,7 @@ curl -s --interface 127.0.0.1 http://127.0.0.1:8080/get
 
 ---
 
-### 106. Resetting Options for Next URL (`--next`)
+### 113. Resetting Options for Next URL (`--next`)
 **Description**: Resets most options for the subsequent URL on the command line.
 **Input**:
 ```bash
@@ -1572,7 +1596,7 @@ curl -s http://127.0.0.1:8080/get --next -d "data=next" http://127.0.0.1:8080/po
 
 ---
 
-### 107. Multiple Config Files (`-K`)
+### 114. Multiple Config Files (`-K`)
 **Description**: Passes multiple configuration files to merge options.
 **Input**:
 ```bash
@@ -1583,7 +1607,7 @@ curl -s -K config1.txt -K config2.txt http://127.0.0.1:8080/headers
 
 ---
 
-### 108. Config from Stdin (`-K -`)
+### 115. Config from Stdin (`-K -`)
 **Description**: Reads configuration parameters from standard input.
 **Input**:
 ```bash
@@ -1594,7 +1618,7 @@ echo 'user-agent = "MyAgent"' | curl -s -K - http://127.0.0.1:8080/get
 
 ---
 
-### 109. Cookie Path Scoping
+### 116. Cookie Path Scoping
 **Description**: Ensures that cookies are only sent back to paths matching the `path` attribute.
 **Input**:
 ```bash
@@ -1606,7 +1630,7 @@ curl -s -b cookies.txt http://127.0.0.1:8080/cookies/path/sub
 
 ---
 
-### 110. Literal Multipart Form String (`--form-string`)
+### 117. Literal Multipart Form String (`--form-string`)
 **Description**: Sends multipart form data that starts with `@` as a literal string.
 **Input**:
 ```bash
@@ -1617,7 +1641,7 @@ curl -s --form-string "field=@literal" http://127.0.0.1:8080/post-form-type
 
 ---
 
-### 111. Content-Type per Form Field
+### 118. Content-Type per Form Field
 **Description**: Specifies a custom Content-Type for a multipart form field.
 **Input**:
 ```bash
@@ -1628,7 +1652,7 @@ curl -s -F "field={\"a\":1};type=application/json" http://127.0.0.1:8080/post-fo
 
 ---
 
-### 112. Maximum Filesize Limit (`--max-filesize`)
+### 119. Maximum Filesize Limit (`--max-filesize`)
 **Description**: Aborts the transfer if the server's `Content-Length` exceeds a specified limit.
 **Input**:
 ```bash
@@ -1639,7 +1663,7 @@ curl -s --max-filesize 500000 http://127.0.0.1:8080/large-response
 
 ---
 
-### 113. Speed Limit and Time (`--speed-limit` and `--speed-time`)
+### 120. Speed Limit and Time (`--speed-limit` and `--speed-time`)
 **Description**: Aborts transfers that fall below a certain speed for a specified duration.
 **Input**:
 ```bash
@@ -1650,7 +1674,7 @@ curl -s --speed-limit 1000 --speed-time 2 http://127.0.0.1:8080/slow-response
 
 ---
 
-### 114. CA Certificate Bundle (`--cacert`)
+### 121. CA Certificate Bundle (`--cacert`)
 **Description**: Provides a specific CA certificate bundle for peer verification.
 **Input**:
 ```bash
@@ -1661,7 +1685,7 @@ curl -s --cacert server.crt https://127.0.0.1:8443/get
 
 ---
 
-### 115. --pinnedpubkey (Success case - File)
+### 122. --pinnedpubkey (Success case - File)
 **Description**: Verifying SSL connection by pinning the public key file using `--pinnedpubkey`.
 **Input**:
 ```bash
@@ -1674,7 +1698,7 @@ curl -s -k --pinnedpubkey server_pub.pem https://127.0.0.1:8443/get
 
 ---
 
-### 115a. --pinnedpubkey (Success case - Hash)
+### 123. --pinnedpubkey (Success case - Hash)
 **Description**: Verifying SSL connection by pinning the public key's SHA256 hash using `--pinnedpubkey`.
 **Input**:
 ```bash
@@ -1689,7 +1713,7 @@ curl -s -k --pinnedpubkey "$pinnedHash" https://127.0.0.1:8443/get
 
 ---
 
-### 115b. --pinnedpubkey (Failure case - Mismatch)
+### 124. --pinnedpubkey (Failure case - Mismatch)
 **Description**: Verifying that the connection fails when the pinned public key hash/file does not match the server's public key.
 **Input**:
 ```bash
@@ -1700,7 +1724,7 @@ curl -s -k --pinnedpubkey "wrong_pubkey.pem" https://127.0.0.1:8443/get
 
 ---
 
-### 116. OPTIONS Request
+### 125. OPTIONS Request
 **Description**: Sends an `OPTIONS` request to check supported methods.
 **Input**:
 ```bash
@@ -1711,7 +1735,7 @@ curl -s -X OPTIONS -i http://127.0.0.1:8080/get
 
 ---
 
-### 117. TRACE Request
+### 126. TRACE Request
 **Description**: Sends a `TRACE` request which echoes the received request.
 **Input**:
 ```bash
@@ -1722,7 +1746,7 @@ curl -s -X TRACE http://127.0.0.1:8080/get
 
 ---
 
-### 118. HEAD Request with Redirects
+### 127. HEAD Request with Redirects
 **Description**: Verifies that `HEAD` with `-L` follows redirects while remaining a `HEAD` request.
 **Input**:
 ```bash
@@ -1733,7 +1757,7 @@ curl -s -I -L http://127.0.0.1:8080/redirect-to?url=/get
 
 ---
 
-### 119. Authentication with Username Only (Interactive Prompt Simulation)
+### 128. Authentication with Username Only (Interactive Prompt Simulation)
 **Description**: Testing `curl -u "username:"`. Appending a colon tells `curl` that there is no password, preventing it from prompting the user interactively.
 **Input**:
 ```bash
@@ -1744,7 +1768,7 @@ curl -s -u "user:" http://127.0.0.1:8080/basic-auth-check
 
 ---
 
-### 120. Authentication with Colon in Credentials
+### 129. Authentication with Colon in Credentials
 **Description**: Testing passwords that contain colons.
 **Input**:
 ```bash
@@ -1755,7 +1779,7 @@ curl -s -u "user:pass:word" http://127.0.0.1:8080/basic-auth-check
 
 ---
 
-### 121. Silent and Verbose Combined
+### 130. Silent and Verbose Combined
 **Description**: Testing `curl -s -v`. `-s` suppresses the progress meter, but `-v` still shows request/response details.
 **Input**:
 ```bash
@@ -1766,7 +1790,7 @@ curl -s -v http://127.0.0.1:8080/get
 
 ---
 
-### 122. Include Headers with Output File
+### 131. Include Headers with Output File
 **Description**: Using `-i` with `-o` ensures headers are saved to the file.
 **Input**:
 ```bash
@@ -1777,7 +1801,7 @@ curl -s -i -o output.txt http://127.0.0.1:8080/get
 
 ---
 
-### 123. Mixed Source Data in POST
+### 132. Mixed Source Data in POST
 **Description**: Combining raw strings and file data in the same request.
 **Input**:
 ```bash
@@ -1789,7 +1813,7 @@ curl -s -d "param1=val1" -d @data.txt http://127.0.0.1:8080/post
 
 ---
 
-### 124. Multiple @file Arguments in POST
+### 133. Multiple @file Arguments in POST
 **Description**: Multiple `-d @file` arguments are correctly concatenated.
 **Input**:
 ```bash
@@ -1802,7 +1826,7 @@ curl -s -d @file1.txt -d @file2.txt http://127.0.0.1:8080/post
 
 ---
 
-### 125. Multiple Files in One Form Field
+### 134. Multiple Files in One Form Field
 **Description**: Testing the syntax for multiple files in a single form field using multiple `-F` flags.
 **Input**:
 ```bash
@@ -1813,7 +1837,7 @@ curl -s -F "images=@img1.jpg" -F "images=@img2.jpg" http://127.0.0.1:8080/post
 
 ---
 
-### 126. Exit 3: Malformed URL
+### 135. Exit 3: Malformed URL
 **Description**: Verifying exit code for malformed URL.
 **Input**:
 ```bash
@@ -1824,7 +1848,7 @@ curl "http://[invalid-url]"
 
 ---
 
-### 127. Exit 7: Failed to Connect
+### 136. Exit 7: Failed to Connect
 **Description**: Verifying exit code for connection refusal.
 **Input**:
 ```bash
@@ -1835,7 +1859,7 @@ curl http://127.0.0.1:1
 
 ---
 
-### 128. Environment Variable CURL_CA_BUNDLE
+### 137. Environment Variable CURL_CA_BUNDLE
 **Description**: Verifying the tool respects the `CURL_CA_BUNDLE` environment variable.
 **Input**:
 ```bash
@@ -1847,7 +1871,7 @@ curl https://127.0.0.1:8443/get
 
 ---
 
-### 129. Resuming Already Complete Download
+### 138. Resuming Already Complete Download
 **Description**: Testing behavior when trying to resume a download that is already complete.
 **Input**:
 ```bash
@@ -1859,7 +1883,7 @@ curl -s -C - -o download.txt http://127.0.0.1:8080/range-test
 
 ---
 
-### 130. Duplicate Header Prevention (Content-Type)
+### 139. Duplicate Header Prevention (Content-Type)
 **Description**: Verifying that `-H "Content-Type: ..."` replaces the default value instead of adding a second header, especially when using `-d`.
 **Input**:
 ```bash
@@ -1877,7 +1901,7 @@ curl -s -d "param=value" -H "Content-Type: application/json" http://127.0.0.1:80
 
 ---
 
-### 131. Duplicate Header Prevention (User-Agent)
+### 140. Duplicate Header Prevention (User-Agent)
 **Description**: Verifying that `-H "User-Agent: ..."` replaces the default value instead of adding a second header.
 **Input**:
 ```bash
@@ -1895,7 +1919,7 @@ curl -s -H "User-Agent: MyCustomAgent/1.0" http://127.0.0.1:8080/headers
 
 ---
 
-### 132. Duplicate Header Prevention (Accept)
+### 141. Duplicate Header Prevention (Accept)
 **Description**: Verifying that `-H "Accept: ..."` replaces the default value instead of adding a second header.
 **Input**:
 ```bash
@@ -1913,7 +1937,7 @@ curl -s -H "Accept: application/xml" http://127.0.0.1:8080/headers
 
 ---
 
-### 133. Fail on Server Error with Multiple URLs
+### 142. Fail on Server Error with Multiple URLs
 **Description**: When fetching multiple URLs serially, `-f` (or `--fail`) will return 0 if the LAST URL succeeds, even if previous ones failed with an HTTP error. Subsequent URLs are still executed.
 **Input**:
 ```bash
@@ -1924,7 +1948,7 @@ curl -s -f http://127.0.0.1:8080/status/404 http://127.0.0.1:8080/get
 
 ---
 
-### 134. Abort on First Error with --fail and --fail-early
+### 143. Abort on First Error with --fail and --fail-early
 **Description**: When fetching multiple URLs with both `-f` (or `--fail`) and `--fail-early`, curl will stop immediately on the first HTTP error.
 **Input**:
 ```bash
@@ -1932,3 +1956,14 @@ curl -s -f --fail-early http://127.0.0.1:8080/status/404 http://127.0.0.1:8080/g
 ```
 **Output**:
 (No output, as it stops on the first error, and curl exits with code 22.)
+
+---
+
+### 144. --manual
+**Description**: Display the full manual.
+**Input**:
+```bash
+curl --manual
+```
+**Output**:
+(The content of the KemForge manual.)

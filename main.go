@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	_ "embed"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,6 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 )
+
+//go:embed MANUAL.md
+var manualContent string
 
 func main() {
 	args := os.Args[1:]
@@ -26,20 +30,55 @@ func main() {
 		if opts.ShowHelp {
 			fmt.Println("Usage: kemforge [options] <url>")
 			fmt.Println("Options:")
-			fmt.Println("  -o <file>          Write output to <file>")
-			fmt.Println("  -H <header>        Pass custom header(s) to server")
-			fmt.Println("  -d <data>          HTTP POST data")
-			fmt.Println("  --data-raw <data>  HTTP POST data (no @ support)")
-			fmt.Println("  -v                 Make the operation more talkative")
-			fmt.Println("  -i                 Include protocol response headers in the output")
-			fmt.Println("  -L                 Follow redirects")
-			fmt.Println("  -k                 Allow insecure server connections when using SSL")
-			fmt.Println("  -s                 Silent mode")
-			fmt.Println("  --retry <num>      Retry request on transient errors")
-			fmt.Println("  --retry-delay <s>  Wait <seconds> between retries")
-			fmt.Println("  --pqc              Enable Post-Quantum Cryptography (ML-KEM)")
-			fmt.Println("  --help             This help text")
-			fmt.Println("  --version          Show version number and exit")
+			fmt.Printf("  %-30s %s\n", "-o, --output <file>", "Write output to <file>")
+			fmt.Printf("  %-30s %s\n", "-O, --remote-name", "Use the remote file name for output")
+			fmt.Printf("  %-30s %s\n", "-H, --header <header>", "Pass custom header(s) to server")
+			fmt.Printf("  %-30s %s\n", "-d, --data <data>", "HTTP POST data (preserves newlines if literal)")
+			fmt.Printf("  %-30s %s\n", "--data-raw <data>", "HTTP POST data (no @ support, preserves newlines)")
+			fmt.Printf("  %-30s %s\n", "-v, --verbose", "Make the operation more talkative")
+			fmt.Printf("  %-30s %s\n", "-i, --include", "Include protocol response headers in the output")
+			fmt.Printf("  %-30s %s\n", "-I, --head", "Show document info only")
+			fmt.Printf("  %-30s %s\n", "-L, --location", "Follow redirects")
+			fmt.Printf("  %-30s %s\n", "-k, --insecure", "Allow insecure server connections when using SSL")
+			fmt.Printf("  %-30s %s\n", "-s, --silent", "Silent mode")
+			fmt.Printf("  %-30s %s\n", "-S, --show-error", "Show error even when -s is used")
+			fmt.Printf("  %-30s %s\n", "-u, --user <user:pass>", "Server user and password")
+			fmt.Printf("  %-30s %s\n", "-x, --proxy <proxy>", "Use proxy on given port")
+			fmt.Printf("  %-30s %s\n", "-X, --request <method>", "Specify request method to use")
+			fmt.Printf("  %-30s %s\n", "-A, --user-agent <agent>", "Send User-Agent <agent> to server")
+			fmt.Printf("  %-30s %s\n", "-e, --referer <referer>", "Referrer URL")
+			fmt.Printf("  %-30s %s\n", "-K, --config <file>", "Read config from a file")
+			fmt.Printf("  %-30s %s\n", "-f, --fail", "Fail silently (no output at all) on HTTP errors")
+			fmt.Printf("  %-30s %s\n", "-F, --form <data>", "Specify HTTP multipart POST data")
+			fmt.Printf("  %-30s %s\n", "-Z, --parallel", "Perform transfers in parallel")
+			fmt.Printf("  %-30s %s\n", "-b, --cookie <data>", "Send cookies from string/file")
+			fmt.Printf("  %-30s %s\n", "-c, --cookie-jar <file>", "Write cookies to <file> after operation")
+			fmt.Printf("  %-30s %s\n", "-D, --dump-header <file>", "Write the received HTTP headers to <file>")
+			fmt.Printf("  %-30s %s\n", "-T, --upload-file <file>", "Transfer <file> to REMOTE")
+			fmt.Printf("  %-30s %s\n", "-C, --continue-at <offset>", "Resumed transfer offset")
+			fmt.Printf("  %-30s %s\n", "-G, --get", "Put the post data in the URL and use GET")
+			fmt.Printf("  %-30s %s\n", "-r, --range <range>", "Retrieve only the bytes within RANGE")
+			fmt.Printf("  %-30s %s\n", "-m, --max-time <seconds>", "Maximum time allowed for the transfer")
+			fmt.Printf("  %-30s %s\n", "--connect-timeout <seconds>", "Maximum time allowed for connection")
+			fmt.Printf("  %-30s %s\n", "--limit-rate <speed>", "Limit transfer speed to SPEED")
+			fmt.Printf("  %-30s %s\n", "--compressed", "Request compressed response")
+			fmt.Printf("  %-30s %s\n", "--retry <num>", "Retry request on transient errors")
+			fmt.Printf("  %-30s %s\n", "--retry-delay <s>", "Wait <seconds> between retries")
+			fmt.Printf("  %-30s %s\n", "--retry-connrefused", "Retry on connection refused")
+			fmt.Printf("  %-30s %s\n", "--retry-all-errors", "Retry on all errors")
+			fmt.Printf("  %-30s %s\n", "--fail-early", "Fail on first transfer error, don't continue")
+			fmt.Printf("  %-30s %s\n", "--resolve <host:port:address>", "Resolve the host+port to this address")
+			fmt.Printf("  %-30s %s\n", "--json <data>", "HTTP POST JSON data")
+			fmt.Printf("  %-30s %s\n", "--cacert <file>", "CA certificate to verify peer against")
+			fmt.Printf("  %-30s %s\n", "--pinnedpubkey <hashes/file>", "FILE/HASHES Public key to verify peer against")
+			fmt.Printf("  %-30s %s\n", "--manual", "Display the full manual")
+			fmt.Printf("  %-30s %s\n", "--help", "This help text")
+			fmt.Printf("  %-30s %s\n", "--version", "Show version number and exit")
+			continue
+		}
+
+		if opts.ShowManual {
+			fmt.Print(manualContent)
 			continue
 		}
 

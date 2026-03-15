@@ -21,19 +21,25 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	}
 
 	// Handle -G (GET with data as query params)
-	if opts.GetMode && len(opts.URLEncodeArgs) > 0 {
+	if opts.GetMode && (len(opts.URLEncodeArgs) > 0 || len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.DataRaw) > 0) {
 		u, err := url.Parse(targetURL)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (3) URL parse error: %v\n", err)
 			os.Exit(3)
 		}
 		q := u.Query()
-		for _, arg := range opts.URLEncodeArgs {
+		// Combine all data sources that -G affects
+		allData := append([]string{}, opts.URLEncodeArgs...)
+		allData = append(allData, opts.DataArgs...)
+		allData = append(allData, opts.DataBinary...)
+		allData = append(allData, opts.DataRaw...)
+
+		for _, arg := range allData {
 			parts := strings.SplitN(arg, "=", 2)
 			if len(parts) == 2 {
-				q.Set(parts[0], parts[1])
+				q.Add(parts[0], parts[1])
 			} else {
-				q.Set(arg, "")
+				q.Add(arg, "")
 			}
 		}
 		u.RawQuery = q.Encode()
@@ -45,6 +51,8 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	if method == "" {
 		if opts.HeadReq {
 			method = "HEAD"
+		} else if opts.GetMode {
+			method = "GET"
 		} else if len(opts.DataArgs) > 0 || len(opts.DataBinary) > 0 || len(opts.DataRaw) > 0 || len(opts.FormArgs) > 0 || len(opts.FormStringArgs) > 0 || opts.JSONData != "" {
 			method = "POST"
 		} else if opts.UploadFile != "" {
@@ -55,7 +63,11 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 	}
 
 	// Build request body
-	body, contentType := buildRequestBody(opts)
+	var body io.Reader
+	var contentType string
+	if !opts.GetMode {
+		body, contentType = buildRequestBody(opts)
+	}
 
 	// Build HTTP request
 	req, err := http.NewRequest(method, targetURL, body)
@@ -300,8 +312,8 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 		var allData [][]byte
 
 		// We need to preserve the order of data flags if possible, but the current
-		// options structure separates them. We'll handle DataArgs (stripping newlines)
-		// and then DataBinary (as-is) and then DataRaw (stripping newlines).
+		// options structure separates them. We'll handle DataArgs (stripping newlines from files)
+		// and then DataBinary (as-is) and then DataRaw (as-is).
 
 		for _, d := range opts.DataArgs {
 			if strings.HasPrefix(d, "@") {
@@ -322,10 +334,8 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 				stripped = strings.ReplaceAll(stripped, "\r", "")
 				allData = append(allData, []byte(stripped))
 			} else {
-				// Also strip newlines from direct data string for -d
-				stripped := strings.ReplaceAll(d, "\n", "")
-				stripped = strings.ReplaceAll(stripped, "\r", "")
-				allData = append(allData, []byte(stripped))
+				// -d provided literally from the command line doesn't strip newlines
+				allData = append(allData, []byte(d))
 			}
 		}
 
@@ -350,10 +360,8 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 		}
 
 		for _, d := range opts.DataRaw {
-			// --data-raw also strips newlines but doesn't interpret @
-			stripped := strings.ReplaceAll(d, "\n", "")
-			stripped = strings.ReplaceAll(stripped, "\r", "")
-			allData = append(allData, []byte(stripped))
+			// --data-raw preserves newlines and doesn't interpret @
+			allData = append(allData, []byte(d))
 		}
 
 		var finalBody []byte

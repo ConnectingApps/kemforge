@@ -265,14 +265,26 @@ def range_endpoint(n):
 
     range_header = request.headers.get("Range")
     if range_header:
-        byte_range = range_header.replace("bytes=", "").split("-")
-        start = int(byte_range[0])
-        end = int(byte_range[1]) if byte_range[1] else n - 1
-        sliced = data[start : end + 1]
-        resp = make_response(sliced, 206)
-        resp.headers["Content-Range"] = f"bytes {start}-{end}/{n}"
-        resp.headers["Content-Length"] = str(len(sliced))
-        return resp
+        try:
+            parts = range_header.replace("bytes=", "").split("-")
+            if parts[0] == "":  # suffix-byte-range (e.g. bytes=-5)
+                length = int(parts[1])
+                start = max(0, n - length)
+                end = n - 1
+            elif parts[1] == "":  # prefix-only (e.g. bytes=5-)
+                start = int(parts[0])
+                end = n - 1
+            else:
+                start = int(parts[0])
+                end = min(n - 1, int(parts[1]))
+            
+            sliced = data[start : end + 1]
+            resp = make_response(sliced, 206)
+            resp.headers["Content-Range"] = f"bytes {start}-{end}/{n}"
+            resp.headers["Content-Length"] = str(len(sliced))
+            return resp
+        except (ValueError, IndexError):
+            return Response("Invalid range", status=416)
     return data
 
 
