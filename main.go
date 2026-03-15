@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	_ "embed"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,6 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 )
+
+//go:embed MANUAL.md
+var manualContent string
 
 func main() {
 	args := os.Args[1:]
@@ -67,8 +71,14 @@ func main() {
 			fmt.Printf("  %-30s %s\n", "--json <data>", "HTTP POST JSON data")
 			fmt.Printf("  %-30s %s\n", "--cacert <file>", "CA certificate to verify peer against")
 			fmt.Printf("  %-30s %s\n", "--pinnedpubkey <hashes/file>", "FILE/HASHES Public key to verify peer against")
+			fmt.Printf("  %-30s %s\n", "--manual", "Display the full manual")
 			fmt.Printf("  %-30s %s\n", "--help", "This help text")
 			fmt.Printf("  %-30s %s\n", "--version", "Show version number and exit")
+			continue
+		}
+
+		if opts.ShowManual {
+			fmt.Print(manualContent)
 			continue
 		}
 

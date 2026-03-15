@@ -1,5 +1,5 @@
 #!/usr/bin/env pwsh
-# test_curl.ps1 - Test script for curl features based on CURL_FEATURES.md
+# test_curl.ps1 - Test script for KemForge features based on MANUAL.md
 # Usage: ./test_curl.ps1 <curl-command>
 # Example: ./test_curl.ps1 curl
 #
@@ -2533,6 +2533,18 @@ if ($result.ExitCode -eq 22 -and $result.Stdout -notmatch "url.*get") {
     Write-Pass "Aborted immediately with --fail and --fail-early."
 } else {
     Write-Fail "Abort with --fail-early failed. ExitCode: $($result.ExitCode), Stdout: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 144: --manual
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "144. --manual"
+$result = Invoke-CurlTest "--manual"
+if ($result.Stdout -match "# KemForge Manual") {
+    Write-Pass "--manual successfully displayed the manual content."
+} else {
+    Write-Fail "--manual failed. Stdout: $($result.Stdout)"
 }
 
 # ----------------------------------------------------------------

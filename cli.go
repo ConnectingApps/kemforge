@@ -69,6 +69,7 @@ type Options struct {
 	ProxyUser     string // --proxy-user user:pass
 	ShowHelp      bool   // --help
 	ShowVersion   bool   // --version
+	ShowManual    bool   // --manual
 
 	// New fields
 	CreateDirs       bool
@@ -419,6 +420,8 @@ func ParseArgs(args []string) []Options {
 			}
 		case a == "--help":
 			opts.ShowHelp = true
+		case a == "--manual":
+			opts.ShowManual = true
 		case a == "--version":
 			opts.ShowVersion = true
 		case strings.HasPrefix(a, "-"):
@@ -430,10 +433,10 @@ func ParseArgs(args []string) []Options {
 
 	allOpts = append(allOpts, opts)
 
-	// If no URLs found in any of the segments, and not showing help/version
+	// If no URLs found in any of the segments, and not showing help/version/manual
 	hasURLs := false
 	for _, o := range allOpts {
-		if len(o.TargetURLs) > 0 || o.ShowHelp || o.ShowVersion {
+		if len(o.TargetURLs) > 0 || o.ShowHelp || o.ShowVersion || o.ShowManual {
 			hasURLs = true
 			break
 		}
