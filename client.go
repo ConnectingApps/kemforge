@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/youmark/pkcs8"
 	"golang.org/x/net/http2"
 )
 
@@ -49,8 +50,7 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 
 			if strings.HasPrefix(opts.PinnedPubKey, "sha256//") {
 				peerHash := sha256.Sum256(peerPubKey)
-				hashes := strings.Split(opts.PinnedPubKey, ";")
-				for _, h := range hashes {
+				for h := range strings.SplitSeq(opts.PinnedPubKey, ";") {
 					if strings.HasPrefix(h, "sha256//") {
 						b64Hash := h[8:]
 						decoded, err := base64.StdEncoding.DecodeString(b64Hash)
@@ -155,7 +155,7 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 
 			// Check if host is in noProxy
 			host := req.URL.Hostname()
-			for _, p := range strings.Split(noProxy, ",") {
+			for p := range strings.SplitSeq(noProxy, ",") {
 				p = strings.TrimSpace(p)
 				if p == "" {
 					continue
@@ -329,10 +329,22 @@ func loadCertWithKey(certFile, keyFile, password string) (tls.Certificate, error
 		if block == nil {
 			break
 		}
-		if x509.IsEncryptedPEMBlock(block) {
+		if block.Type == "ENCRYPTED PRIVATE KEY" {
+			// Modern PKCS#8 encrypted key
+			key, err := pkcs8.ParsePKCS8PrivateKey(block.Bytes, []byte(password))
+			if err != nil {
+				return tls.Certificate{}, fmt.Errorf("failed to decrypt PKCS#8 private key: %v", err)
+			}
+			der, err := x509.MarshalPKCS8PrivateKey(key)
+			if err != nil {
+				return tls.Certificate{}, fmt.Errorf("failed to marshal private key: %v", err)
+			}
+			block = &pem.Block{Type: "PRIVATE KEY", Bytes: der}
+		} else if x509.IsEncryptedPEMBlock(block) {
+			// Legacy PKCS#1/SEC1 encrypted key
 			der, err := x509.DecryptPEMBlock(block, []byte(password))
 			if err != nil {
-				return tls.Certificate{}, fmt.Errorf("failed to decrypt private key: %v", err)
+				return tls.Certificate{}, fmt.Errorf("failed to decrypt legacy private key: %v", err)
 			}
 			block = &pem.Block{Type: block.Type, Bytes: der}
 		}

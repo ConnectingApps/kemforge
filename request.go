@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"slices"
 	"strings"
 )
 
@@ -29,7 +30,7 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 		}
 		q := u.Query()
 		// Combine all data sources that -G affects
-		allData := append([]string{}, opts.URLEncodeArgs...)
+		allData := slices.Clone(opts.URLEncodeArgs)
 		allData = append(allData, opts.DataArgs...)
 		allData = append(allData, opts.DataBinary...)
 		allData = append(allData, opts.DataRaw...)

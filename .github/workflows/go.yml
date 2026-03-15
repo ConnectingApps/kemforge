@@ -5,9 +5,9 @@ name: Go
 
 on:
   push:
-    branches: [ "main", "feature/**", "copilot/**", "dependabot/**" ]
+    branches: [ "main", "feature/**", "copilot/**", "dependabot/**", "**-macos" ]
   pull_request:
-    branches: [ "main", "feature/**", "copilot/**", "dependabot/**" ]
+    branches: [ "main", "feature/**", "copilot/**", "dependabot/**", "**-macos" ]
 
 jobs:
 
@@ -34,7 +34,7 @@ jobs:
     needs: verify_test_script
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
             binary: ./kemforge
@@ -42,31 +42,41 @@ jobs:
           - os: windows-latest
             binary: ./kemforge.exe
             pip: .\.venv\Scripts\pip
+          - os: macos-latest
+            binary: ./kemforge
+            pip: .venv/bin/pip
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v5
+      if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
 
     - name: Set up Go
+      if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       uses: actions/setup-go@v6
       with:
         go-version: '1.26'
 
     - name: Set up Python
+      if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       uses: actions/setup-python@v6
       with:
         python-version: '3.12'
 
     - name: Install dependencies
+      if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       run: |
         python -m venv .venv
         ${{ matrix.pip }} install flask cryptography
       shell: pwsh
 
     - name: Build
+      if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       run: go build -v .
 
     - name: Test application
+      if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       run: pwsh -File test_curl.ps1 ${{ matrix.binary }}
 
     - name: Run application
+      if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       run: ${{ matrix.binary }} -I https://www.google.com

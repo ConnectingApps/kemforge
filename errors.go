@@ -14,7 +14,7 @@ import (
 // HandleRequestError inspects the error from client.Do() and returns
 // the appropriate curl-compatible exit code (6 for DNS, 28 for timeout, 7 for refused, etc).
 func HandleRequestError(err error, req *http.Request, ctx context.Context, opts Options) int {
-	if ctx.Err() == context.DeadlineExceeded {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		if !opts.Silent || opts.ShowErrors {
 			_, _ = fmt.Fprintf(os.Stderr, "kemforge: (28) Operation timed out\n")
 		}
