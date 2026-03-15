@@ -22,6 +22,8 @@ import (
 // BuildClient creates an *http.Client with the appropriate transport,
 // proxy, TLS, timeout, redirect, and cookie jar settings.
 func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
+	// Go 1.23+ includes X25519MLKEM768 in the default key exchange list,
+	// so PQC is preferred automatically without setting CurvePreferences.
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: opts.Insecure,
 	}
