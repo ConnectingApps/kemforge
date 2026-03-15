@@ -300,8 +300,8 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 		var allData [][]byte
 
 		// We need to preserve the order of data flags if possible, but the current
-		// options structure separates them. We'll handle DataArgs (stripping newlines)
-		// and then DataBinary (as-is) and then DataRaw (stripping newlines).
+		// options structure separates them. We'll handle DataArgs (stripping newlines from files)
+		// and then DataBinary (as-is) and then DataRaw (as-is).
 
 		for _, d := range opts.DataArgs {
 			if strings.HasPrefix(d, "@") {
@@ -322,10 +322,8 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 				stripped = strings.ReplaceAll(stripped, "\r", "")
 				allData = append(allData, []byte(stripped))
 			} else {
-				// Also strip newlines from direct data string for -d
-				stripped := strings.ReplaceAll(d, "\n", "")
-				stripped = strings.ReplaceAll(stripped, "\r", "")
-				allData = append(allData, []byte(stripped))
+				// -d provided literally from the command line doesn't strip newlines
+				allData = append(allData, []byte(d))
 			}
 		}
 
@@ -350,10 +348,8 @@ func buildRequestBody(opts Options) (io.Reader, string) {
 		}
 
 		for _, d := range opts.DataRaw {
-			// --data-raw also strips newlines but doesn't interpret @
-			stripped := strings.ReplaceAll(d, "\n", "")
-			stripped = strings.ReplaceAll(stripped, "\r", "")
-			allData = append(allData, []byte(stripped))
+			// --data-raw preserves newlines and doesn't interpret @
+			allData = append(allData, []byte(d))
 		}
 
 		var finalBody []byte

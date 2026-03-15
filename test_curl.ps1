@@ -1738,6 +1738,34 @@ if ($result.Stdout -match "`"@literal`"") {
 }
 
 # ----------------------------------------------------------------
+# Test 142: --data-raw with Newlines
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "142. --data-raw with Newlines"
+# Standard curl --data-raw preserves newlines
+$data = "line1`nline2"
+$result = Invoke-CurlTest "-s --data-raw `"$data`" $baseUrl/post-data-raw"
+if ($result.Stdout -match "line1\\nline2") {
+    Write-Pass "--data-raw preserved newlines correctly."
+} else {
+    Write-Fail "--data-raw failed to preserve newlines: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
+# Test 143: -d with Newlines (Literal String)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "143. -d with Newlines (Literal String)"
+# Standard curl -d preserves newlines when provided literally on command line
+$data = "line1`nline2"
+$result = Invoke-CurlTest "-s -d `"$data`" $baseUrl/post-data-raw"
+if ($result.Stdout -match "line1\\nline2") {
+    Write-Pass "-d preserved newlines in literal string correctly."
+} else {
+    Write-Fail "-d failed to preserve newlines in literal string: $($result.Stdout)"
+}
+
+# ----------------------------------------------------------------
 # Test 89: Uploading from Stdin with -T -
 # ----------------------------------------------------------------
 $totalTests++
