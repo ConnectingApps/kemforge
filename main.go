@@ -19,8 +19,10 @@ var manualContent string
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		_, _ = fmt.Fprintf(os.Stderr, "kemforge: no URL specified\n")
-		os.Exit(1)
+		fmt.Printf("kemforge (curl-compatible) version 1.0.0\n")
+		fmt.Printf("Usage: kemforge [options] <url>\n")
+		fmt.Printf("Try 'kemforge --help' or 'kemforge --manual' for more information.\n")
+		os.Exit(2)
 	}
 
 	allOpts := ParseArgs(args)
