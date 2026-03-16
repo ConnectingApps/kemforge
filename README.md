@@ -54,7 +54,7 @@ KemForge supports all common curl features, including but not limited to:
 | Custom headers | `-H` |
 | File uploads (multipart) | `-F` |
 | Follow redirects | `-L`, `--max-redirs`, `--post301`, `--post302`, `--post303` |
-| Authentication | `-u` (Basic), `--digest`, `--bearer` |
+| Authentication | `-u` (Basic), `--digest` |
 | Cookies | `-b`, `-c` (cookie jar) |
 | TLS / SSL | `-k` (insecure), `--cacert`, `--cert`, `--key`, `--pinnedpubkey` |
 | Proxy support | `-x`, `--noproxy`, `--proxy-user` |
