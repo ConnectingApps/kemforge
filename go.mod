@@ -1,4 +1,4 @@
-module github.com/ConnectingApps/KemForge
+module github.com/ConnectingApps/kemforge
 
 go 1.25.8
 
