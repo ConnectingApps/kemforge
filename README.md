@@ -4,6 +4,19 @@
 
 ---
 
+## Table of Contents
+
+- [Why KemForge?](#why-kemforge)
+- [TLS Data & PQC Feedback](#tls-data--pqc-feedback)
+- [Curl Feature Compatibility](#curl-feature-compatibility)
+- [Usage Examples](#usage-examples)
+- [Installation](#installation)
+- [Testing](#testing)
+- [Sponsors](#sponsors)
+- [License](#license)
+
+---
+
 ## Why KemForge?
 
 Traditional encryption algorithms (RSA, ECDH) that protect today's internet traffic are vulnerable to attacks by quantum computers. Adversaries are already harvesting encrypted data today with the intent to decrypt it once quantum computers become powerful enough — a strategy known as **"Harvest Now, Decrypt Later"**.
