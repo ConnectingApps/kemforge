@@ -146,6 +146,11 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 		req.SetBasicAuth(u, p)
 	}
 
+	// Set bearer token auth
+	if opts.BearerToken != "" {
+		req.Header.Set("Authorization", "Bearer "+opts.BearerToken)
+	}
+
 	// Set netrc auth
 	netrcPath := opts.NetrcFile
 	if opts.Netrc && netrcPath == "" {

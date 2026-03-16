@@ -56,6 +56,7 @@ type Options struct {
 	CertFile      string // --cert
 	KeyFile       string // --key
 	Pass          string // --pass
+	BearerToken   string // --bearer
 	DigestAuth    bool   // --digest
 	NetrcFile     string // --netrc-file
 	UnixSocket    string // --unix-socket
@@ -303,6 +304,11 @@ func ParseArgs(args []string) []Options {
 			i++
 			if i < len(args) {
 				opts.Pass = args[i]
+			}
+		case a == "--bearer":
+			i++
+			if i < len(args) {
+				opts.BearerToken = args[i]
 			}
 		case a == "--digest":
 			opts.DigestAuth = true

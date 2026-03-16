@@ -2623,6 +2623,19 @@ try {
 }
 
 # ----------------------------------------------------------------
+# Test 148: Bearer Token Authentication (--bearer flag)
+# ----------------------------------------------------------------
+$totalTests++
+Write-TestHeader "148. Bearer Token Authentication (--bearer flag)"
+$token = "my-secret-bearer-token"
+$result = Invoke-CurlTest "-s --bearer $token $baseUrl/bearer"
+if ($result.Stdout -match '"authenticated":\s*true' -and $result.Stdout -match "`"token`":\s*`"$token`"") {
+    Write-Pass "Bearer token authentication with --bearer flag succeeded."
+} else {
+    Write-Fail "Bearer token authentication with --bearer flag failed. Stdout: $($result.Stdout), Stderr: $($result.Stderr)"
+}
+
+# ----------------------------------------------------------------
 # Stop the local server and print summary
 # ----------------------------------------------------------------
 if (-not $serverProcess.HasExited) { $serverProcess.Kill() }
