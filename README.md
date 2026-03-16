@@ -263,6 +263,12 @@ The GitHub Actions pipeline (`.github/workflows/go.yml`) runs both stages across
 
 ---
 
+## Sponsors
+
+KemForge is an open-source project that relies on community support. If you find KemForge useful, please consider sponsoring us on [Open Collective](https://opencollective.com/connecting-apps). Your sponsorship helps us maintain and improve the project — and as a sponsor, you can get your company logo featured right here on this README page.
+
+---
+
 ## License
 
 See [LICENSE](LICENSE) for details.
