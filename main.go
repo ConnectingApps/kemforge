@@ -133,6 +133,7 @@ func main() {
 			globalExitCode.Store(int32(lastExitCode))
 		}
 	}
+	fmt.Fprintf(os.Stderr, "\n\n\033[33mKemForge is an open-source project that relies on community support. If you find KemForge useful, please consider sponsoring us on Open Collective: https://opencollective.com/connecting-apps . Your sponsorship helps us maintain and improve the project — and as a sponsor, you can get your company logo featured on the README page. Feature requests from sponsors can be given priority. \033[0m\n")
 	os.Exit(int(globalExitCode.Load()))
 }
 
