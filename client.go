@@ -3,10 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/des"
+	"crypto/md5"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"net"
@@ -16,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/icholy/digest"
 	"github.com/youmark/pkcs8"
 	"golang.org/x/net/http2"
 )
@@ -231,8 +237,23 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 
 	// Build client
+	var rt http.RoundTripper = transport
+	if opts.DigestAuth && opts.BasicAuth != "" {
+		parts := strings.SplitN(opts.BasicAuth, ":", 2)
+		username := parts[0]
+		password := ""
+		if len(parts) == 2 {
+			password = parts[1]
+		}
+		rt = &digest.Transport{
+			Username:  username,
+			Password:  password,
+			Transport: transport,
+		}
+	}
+
 	client := &http.Client{
-		Transport: transport,
+		Transport: rt,
 	}
 	if opts.MaxTime > 0 {
 		client.Timeout = time.Duration(opts.MaxTime * float64(time.Second))
@@ -340,9 +361,9 @@ func loadCertWithKey(certFile, keyFile, password string) (tls.Certificate, error
 				return tls.Certificate{}, fmt.Errorf("failed to marshal private key: %v", err)
 			}
 			block = &pem.Block{Type: "PRIVATE KEY", Bytes: der}
-		} else if x509.IsEncryptedPEMBlock(block) {
-			// Legacy PKCS#1/SEC1 encrypted key
-			der, err := x509.DecryptPEMBlock(block, []byte(password))
+		} else if block.Headers["DEK-Info"] != "" {
+			// Legacy PEM encryption (RFC 1423)
+			der, err := decryptLegacyPEMBlock(block, []byte(password))
 			if err != nil {
 				return tls.Certificate{}, fmt.Errorf("failed to decrypt legacy private key: %v", err)
 			}
@@ -356,4 +377,91 @@ func loadCertWithKey(certFile, keyFile, password string) (tls.Certificate, error
 	}
 
 	return tls.X509KeyPair(certPEM, decryptedKeyPEM)
+}
+
+// decryptLegacyPEMBlock decrypts a legacy RFC 1423 encrypted PEM block.
+// This replaces the deprecated x509.DecryptPEMBlock.
+func decryptLegacyPEMBlock(block *pem.Block, password []byte) ([]byte, error) {
+	dekInfo := block.Headers["DEK-Info"]
+	if dekInfo == "" {
+		return nil, fmt.Errorf("no DEK-Info header")
+	}
+	cipherName, ivHex, ok := strings.Cut(dekInfo, ",")
+	if !ok {
+		return nil, fmt.Errorf("malformed DEK-Info header")
+	}
+	cipherName = strings.TrimSpace(cipherName)
+	ivBytes, err := hex.DecodeString(strings.TrimSpace(ivHex))
+	if err != nil {
+		return nil, fmt.Errorf("malformed IV in DEK-Info: %v", err)
+	}
+
+	var newCipher func([]byte) (cipher.Block, error)
+	var keyLen int
+	switch cipherName {
+	case "DES-CBC":
+		newCipher = des.NewCipher
+		keyLen = 8
+	case "DES-EDE3-CBC":
+		newCipher = des.NewTripleDESCipher
+		keyLen = 24
+	case "AES-128-CBC":
+		newCipher = aes.NewCipher
+		keyLen = 16
+	case "AES-192-CBC":
+		newCipher = aes.NewCipher
+		keyLen = 24
+	case "AES-256-CBC":
+		newCipher = aes.NewCipher
+		keyLen = 32
+	default:
+		return nil, fmt.Errorf("unsupported PEM cipher: %s", cipherName)
+	}
+
+	// Validate IV length before use in key derivation
+	if len(ivBytes) < 8 {
+		return nil, fmt.Errorf("IV in DEK-Info is too short: got %d bytes, need at least 8", len(ivBytes))
+	}
+
+	// Derive key using MD5-based OpenSSL key derivation (EVP_BytesToKey with count=1)
+	key := make([]byte, 0, keyLen)
+	var prev []byte
+	for len(key) < keyLen {
+		h := md5.New()
+		h.Write(prev)
+		h.Write(password)
+		h.Write(ivBytes[:8])
+		prev = h.Sum(nil)
+		key = append(key, prev...)
+	}
+	key = key[:keyLen]
+
+	block2, err := newCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	if len(ivBytes) != block2.BlockSize() {
+		return nil, fmt.Errorf("IV length (%d) does not match expected block size (%d) for %s", len(ivBytes), block2.BlockSize(), cipherName)
+	}
+	if len(block.Bytes)%block2.BlockSize() != 0 {
+		return nil, fmt.Errorf("encrypted data is not a multiple of the block size")
+	}
+	data := make([]byte, len(block.Bytes))
+	cbc := cipher.NewCBCDecrypter(block2, ivBytes)
+	cbc.CryptBlocks(data, block.Bytes)
+
+	// Remove PKCS#7 padding
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty decrypted data")
+	}
+	padLen := int(data[len(data)-1])
+	if padLen < 1 || padLen > block2.BlockSize() || padLen > len(data) {
+		return nil, fmt.Errorf("invalid padding")
+	}
+	for _, b := range data[len(data)-padLen:] {
+		if int(b) != padLen {
+			return nil, fmt.Errorf("invalid padding")
+		}
+	}
+	return data[:len(data)-padLen], nil
 }

@@ -124,21 +124,13 @@ func NewHTTPRequest(opts Options, targetURL string) *http.Request {
 		}
 	}
 
-	// Set basic auth
-	if opts.BasicAuth != "" {
+	// Set basic auth (digest auth is handled by the transport layer in client.go)
+	if opts.BasicAuth != "" && !opts.DigestAuth {
 		parts := strings.SplitN(opts.BasicAuth, ":", 2)
 		if len(parts) == 2 {
-			if opts.DigestAuth {
-				req.Header.Set("Authorization", fmt.Sprintf(`Digest username="%s", realm="Login", nonce="dcd98b7102dd2f0e8b11d0f600bfb0c093", uri="%s", response="fake"`, parts[0], req.URL.RequestURI()))
-			} else {
-				req.SetBasicAuth(parts[0], parts[1])
-			}
+			req.SetBasicAuth(parts[0], parts[1])
 		} else {
-			if opts.DigestAuth {
-				req.Header.Set("Authorization", fmt.Sprintf(`Digest username="%s", realm="Login", nonce="dcd98b7102dd2f0e8b11d0f600bfb0c093", uri="%s", response="fake"`, parts[0], req.URL.RequestURI()))
-			} else {
-				req.SetBasicAuth(parts[0], "")
-			}
+			req.SetBasicAuth(parts[0], "")
 		}
 	} else if req.URL.User != nil {
 		u := req.URL.User.Username()

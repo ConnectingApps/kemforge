@@ -19,8 +19,10 @@ var manualContent string
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		_, _ = fmt.Fprintf(os.Stderr, "kemforge: no URL specified\n")
-		os.Exit(1)
+		fmt.Printf("kemforge (curl-compatible) version 1.0.0\n")
+		fmt.Printf("Usage: kemforge [options] <url>\n")
+		fmt.Printf("Try 'kemforge --help' or 'kemforge --manual' for more information.\n")
+		os.Exit(2)
 	}
 
 	allOpts := ParseArgs(args)
@@ -43,6 +45,7 @@ func main() {
 			fmt.Printf("  %-30s %s\n", "-s, --silent", "Silent mode")
 			fmt.Printf("  %-30s %s\n", "-S, --show-error", "Show error even when -s is used")
 			fmt.Printf("  %-30s %s\n", "-u, --user <user:pass>", "Server user and password")
+			fmt.Printf("  %-30s %s\n", "--digest", "Use HTTP Digest Authentication")
 			fmt.Printf("  %-30s %s\n", "-x, --proxy <proxy>", "Use proxy on given port")
 			fmt.Printf("  %-30s %s\n", "-X, --request <method>", "Specify request method to use")
 			fmt.Printf("  %-30s %s\n", "-A, --user-agent <agent>", "Send User-Agent <agent> to server")
@@ -78,7 +81,7 @@ func main() {
 		}
 
 		if opts.ShowManual {
-			fmt.Print(manualContent)
+			PrintFormattedManual(manualContent)
 			continue
 		}
 
