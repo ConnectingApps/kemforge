@@ -136,13 +136,85 @@ kemforge --retry 3 --retry-delay 2 https://flaky-api.example.com
 
 ## Installation
 
+### Ubuntu / Debian
+
+1. Install Go (if not already installed):
+
+```bash
+sudo apt update
+sudo apt install -y golang-go
+```
+
+2. Ensure the Go bin directory is in your PATH:
+
+```bash
+echo 'export PATH="$PATH:$(go env GOBIN):$(go env GOPATH)/bin"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+3. Install kemforge:
+
+```bash
+go install github.com/ConnectingApps/kemforge@latest
+```
+
+### macOS
+
+1. Install Go (if not already installed) using [Homebrew](https://brew.sh/):
+
+```bash
+brew install go
+```
+
+2. Ensure the Go bin directory is in your PATH:
+
+```bash
+echo 'export PATH="$PATH:$(go env GOBIN):$(go env GOPATH)/bin"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+3. Install kemforge:
+
+```bash
+go install github.com/ConnectingApps/kemforge@latest
+```
+
+### Windows
+
+1. Install Go by downloading the installer from [https://go.dev/dl/](https://go.dev/dl/) and running it. The installer adds Go to your PATH automatically.
+
+2. Ensure the Go bin directory is in your PATH. Open PowerShell and run:
+
+```powershell
+$GoBin = go env GOBIN
+$GoPath = go env GOPATH
+$BinPath = if ($GoBin) { $GoBin } else { "$GoPath\bin" }
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$BinPath", "User")
+```
+
+Then restart your terminal for the change to take effect.
+
+3. Install kemforge:
+
+```powershell
+go install github.com/ConnectingApps/kemforge@latest
+```
+
+### After installation
+
+Once installed, kemforge can be used just like curl:
+
+```bash
+kemforge -I https://www.google.com
+```
+
 ### Build from source
 
 Requires **Go 1.25+**.
 
 ```bash
-git clone https://github.com/your-org/KemForge.git
-cd KemForge
+git clone https://github.com/ConnectingApps/kemforge.git
+cd kemforge
 go build -v .
 ```
 
