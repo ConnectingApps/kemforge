@@ -197,15 +197,44 @@ def basic_auth(user, password):
 
 @app.route("/digest-auth/<user>/<password>")
 def digest_auth(user, password):
-    # This is a very simplified mock of Digest auth challenge
-    auth = request.headers.get("Authorization")
-    if auth and "Digest" in auth and f'username="{user}"' in auth:
-        return jsonify({"authenticated": True, "user": user})
-    
-    # Send challenge
+    import hashlib
+    import re
+
     nonce = "dcd98b7102dd2f0e8b11d0f600bfb0c093"
     opaque = "5ccc069c403ebaf9f0171e9517f40e41"
-    header = f'Digest realm="Login", qop="auth", algorithm=MD5, nonce="{nonce}", opaque="{opaque}"'
+    realm = "Login"
+
+    auth = request.headers.get("Authorization")
+    if auth and auth.startswith("Digest "):
+        # Parse digest fields from the Authorization header
+        def parse_digest(header):
+            fields = {}
+            for match in re.finditer(r'(\w+)=(?:"([^"]+)"|([^\s,]+))', header):
+                fields[match.group(1)] = match.group(2) or match.group(3)
+            return fields
+
+        fields = parse_digest(auth)
+        if fields.get("username") == user:
+            # Validate the digest response
+            ha1 = hashlib.md5(f"{user}:{realm}:{password}".encode()).hexdigest()
+            ha2 = hashlib.md5(f"{request.method}:{fields.get('uri', '')}".encode()).hexdigest()
+
+            if fields.get("qop") == "auth":
+                nc = fields.get("nc", "")
+                cnonce = fields.get("cnonce", "")
+                expected = hashlib.md5(
+                    f"{ha1}:{fields.get('nonce', '')}:{nc}:{cnonce}:auth:{ha2}".encode()
+                ).hexdigest()
+            else:
+                expected = hashlib.md5(
+                    f"{ha1}:{fields.get('nonce', '')}:{ha2}".encode()
+                ).hexdigest()
+
+            if fields.get("response") == expected:
+                return jsonify({"authenticated": True, "user": user})
+
+    # Send challenge
+    header = f'Digest realm="{realm}", qop="auth", algorithm=MD5, nonce="{nonce}", opaque="{opaque}"'
     return make_response(
         "Unauthorized", 401, {"WWW-Authenticate": header}
     )

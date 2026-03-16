@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/icholy/digest"
 	"github.com/youmark/pkcs8"
 	"golang.org/x/net/http2"
 )
@@ -231,8 +232,23 @@ func BuildClient(opts Options) (*http.Client, *simpleCookieJar) {
 	}
 
 	// Build client
+	var rt http.RoundTripper = transport
+	if opts.DigestAuth && opts.BasicAuth != "" {
+		parts := strings.SplitN(opts.BasicAuth, ":", 2)
+		username := parts[0]
+		password := ""
+		if len(parts) == 2 {
+			password = parts[1]
+		}
+		rt = &digest.Transport{
+			Username:  username,
+			Password:  password,
+			Transport: transport,
+		}
+	}
+
 	client := &http.Client{
-		Transport: transport,
+		Transport: rt,
 	}
 	if opts.MaxTime > 0 {
 		client.Timeout = time.Duration(opts.MaxTime * float64(time.Second))

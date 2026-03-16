@@ -45,6 +45,7 @@ func main() {
 			fmt.Printf("  %-30s %s\n", "-s, --silent", "Silent mode")
 			fmt.Printf("  %-30s %s\n", "-S, --show-error", "Show error even when -s is used")
 			fmt.Printf("  %-30s %s\n", "-u, --user <user:pass>", "Server user and password")
+			fmt.Printf("  %-30s %s\n", "--digest", "Use HTTP Digest Authentication")
 			fmt.Printf("  %-30s %s\n", "-x, --proxy <proxy>", "Use proxy on given port")
 			fmt.Printf("  %-30s %s\n", "-X, --request <method>", "Specify request method to use")
 			fmt.Printf("  %-30s %s\n", "-A, --user-agent <agent>", "Send User-Agent <agent> to server")
