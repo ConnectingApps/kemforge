@@ -80,3 +80,38 @@ jobs:
     - name: Run application
       if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       run: ${{ matrix.binary }} -I https://www.google.com
+
+  verify_install:
+    needs: [verify_test_script, build_and_test]
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Set up Go
+      if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+
+    - name: Install kemforge via go install
+      if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
+      run: go install github.com/ConnectingApps/kemforge@${{ github.head_ref || github.ref_name }}
+
+    - name: Add Go bin to PATH (Linux/macOS)
+      if: matrix.os != 'windows-latest' && (matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos'))
+      run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+    - name: Add Go bin to PATH (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        $GoBin = go env GOBIN
+        $GoPath = go env GOPATH
+        $BinPath = if ($GoBin) { $GoBin } else { "$GoPath\bin" }
+        [Environment]::SetEnvironmentVariable("Path", $env:Path + ";$BinPath", "User")
+        echo "$BinPath" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
+      shell: pwsh
+
+    - name: Run kemforge
+      if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
+      run: kemforge -I https://www.google.com
