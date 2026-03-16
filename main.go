@@ -80,7 +80,7 @@ func main() {
 		}
 
 		if opts.ShowManual {
-			fmt.Print(manualContent)
+			PrintFormattedManual(manualContent)
 			continue
 		}
 
