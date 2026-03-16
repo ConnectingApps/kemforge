@@ -390,6 +390,7 @@ func decryptLegacyPEMBlock(block *pem.Block, password []byte) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("malformed DEK-Info header")
 	}
+	cipherName = strings.TrimSpace(cipherName)
 	ivBytes, err := hex.DecodeString(strings.TrimSpace(ivHex))
 	if err != nil {
 		return nil, fmt.Errorf("malformed IV in DEK-Info: %v", err)
