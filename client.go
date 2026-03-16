@@ -418,6 +418,11 @@ func decryptLegacyPEMBlock(block *pem.Block, password []byte) ([]byte, error) {
 		return nil, fmt.Errorf("unsupported PEM cipher: %s", cipherName)
 	}
 
+	// Validate IV length before use in key derivation
+	if len(ivBytes) < 8 {
+		return nil, fmt.Errorf("IV in DEK-Info is too short: got %d bytes, need at least 8", len(ivBytes))
+	}
+
 	// Derive key using MD5-based OpenSSL key derivation (EVP_BytesToKey with count=1)
 	key := make([]byte, 0, keyLen)
 	var prev []byte
@@ -434,6 +439,9 @@ func decryptLegacyPEMBlock(block *pem.Block, password []byte) ([]byte, error) {
 	block2, err := newCipher(key)
 	if err != nil {
 		return nil, err
+	}
+	if len(ivBytes) != block2.BlockSize() {
+		return nil, fmt.Errorf("IV length (%d) does not match expected block size (%d) for %s", len(ivBytes), block2.BlockSize(), cipherName)
 	}
 	if len(block.Bytes)%block2.BlockSize() != 0 {
 		return nil, fmt.Errorf("encrypted data is not a multiple of the block size")
