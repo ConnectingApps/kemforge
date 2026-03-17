@@ -19,7 +19,7 @@ var manualContent string
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		fmt.Printf("kemforge (curl-compatible) version 1.3.0\n")
+		fmt.Printf("kemforge (curl-compatible) version 1.3.2\n")
 		fmt.Printf("Usage: kemforge [options] <url>\n")
 		fmt.Printf("Try 'kemforge --help' or 'kemforge --manual' for more information.\n")
 		os.Exit(2)
