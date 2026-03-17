@@ -7,4 +7,4 @@ FROM alpine:latest
 COPY --from=builder /go/bin/kemforge /usr/local/bin/kemforge
 
 ENTRYPOINT ["kemforge"]
-CMD ["-I", "https://www.google.com"]
+CMD ["--version"]
