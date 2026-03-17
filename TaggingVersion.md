@@ -48,8 +48,11 @@ go install github.com/ConnectingApps/KemForge@latest
 When you release new versions, just increment the tag:
 
 ```bash
-git tag -a v1.1.0 -m "Description of changes"
-git push origin v1.1.0
+git add .
+git commit -m "Bump version to 1.3.1"
+git tag -a v1.3.1 -m "Version 1.3.1"
+git push origin main
+git push origin v1.3.1
 ```
 
 Go follows [Semantic Versioning](https://semver.org/): `vMAJOR.MINOR.PATCH` — e.g., `v1.0.1` for a bugfix, `v1.1.0` for a new feature, `v2.0.0` for breaking changes.
