@@ -131,6 +131,9 @@ jobs:
     - name: Install snap
       run: sudo snap install --dangerous ./kemforge_*.snap
 
+    - name: Verify install hook ran
+      run: sudo journalctl --no-pager -u snapd | grep -q "kemforge installed successfully"
+
     - name: Smoke test snap
       run: /snap/bin/kemforge -I https://www.google.com
 
