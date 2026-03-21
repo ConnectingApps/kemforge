@@ -115,3 +115,20 @@ jobs:
     - name: Run kemforge
       if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       run: kemforge -I https://www.google.com
+
+  build_snap:
+    needs: [verify_install]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Build snap
+      uses: snapcore/action-build@v1
+      id: snap-build
+
+    - name: Install snap
+      run: sudo snap install --dangerous "${{ steps.snap-build.outputs.snap }}"
+
+    - name: Smoke test snap
+      run: /snap/bin/kemforge -I https://www.google.com
+
