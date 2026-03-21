@@ -1,0 +1,28 @@
+name: kemforge
+base: core24
+version: '1.3.2'
+summary: curl-compatible CLI tool with post-quantum cryptography support
+description: |
+  KemForge is a modern, curl-compatible CLI tool for making web requests,
+  built with Post-Quantum Cryptography (PQC) support. It automatically
+  detects whether servers support PQC and warns you if they do not.
+  No dependency on system TLS libraries — PQC works out of the box on
+  every platform, regardless of the underlying TLS library version.
+grade: stable
+confinement: strict
+
+apps:
+  kemforge:
+    command: bin/kemforge
+    plugs:
+      - network
+      - home
+      - removable-media
+
+parts:
+  kemforge:
+    plugin: go
+    source: .
+    build-snaps:
+      - go/latest/stable
+

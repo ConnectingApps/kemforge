@@ -96,7 +96,7 @@ jobs:
 
     - name: Install kemforge via go install
       if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
-      run: go install github.com/ConnectingApps/kemforge@${{ github.head_ref || github.ref_name }}
+      run: go install github.com/ConnectingApps/kemforge@${{ github.event.pull_request.head.sha || github.sha }}
 
     - name: Add Go bin to PATH (Linux/macOS)
       if: matrix.os != 'windows-latest' && (matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos'))
@@ -115,3 +115,22 @@ jobs:
     - name: Run kemforge
       if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       run: kemforge -I https://www.google.com
+
+  build_snap:
+    needs: [verify_install]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Install snapcraft
+      run: sudo snap install snapcraft --classic
+
+    - name: Build snap
+      run: sudo snapcraft pack --destructive-mode
+
+    - name: Install snap
+      run: sudo snap install --dangerous ./kemforge_*.snap
+
+    - name: Smoke test snap
+      run: /snap/bin/kemforge -I https://www.google.com
+
