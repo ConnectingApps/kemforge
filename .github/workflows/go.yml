@@ -96,7 +96,7 @@ jobs:
 
     - name: Install kemforge via go install
       if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
-      run: go install github.com/ConnectingApps/kemforge@${{ github.sha }}
+      run: go install github.com/ConnectingApps/kemforge@${{ github.event.pull_request.head.sha || github.sha }}
 
     - name: Add Go bin to PATH (Linux/macOS)
       if: matrix.os != 'windows-latest' && (matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos'))
