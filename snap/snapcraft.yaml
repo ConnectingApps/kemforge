@@ -7,21 +7,36 @@ description: |
   built with Post-Quantum Cryptography (PQC) support. It automatically
   detects whether servers support PQC and warns you if they do not.
   No dependency on system TLS libraries — PQC works out of the box on
-  every platform, regardless of the underlying TLS library version. All common curl inputs are accepted.
+  every platform, regardless of the underlying TLS library version.
+  All common curl inputs are accepted.
+
   For example, this command:
-  ./kemforge -o /dev/null -s -w "%{http_code}\n" https://example.com
-  will return the HTTP status code of the response, just like curl. But it also gives the PQC status of the server.
-  
-  * TLS DATA:
-  * TlsVersion: 1.3
-  * Cipher:       TLS_AES_128_GCM_SHA256
-  * KeyExchangeGroup: X25519MLKEM768
-  * This server supports post quantum cryptography so the server has protection against quantum attacks.
-  *
-  200
-  
-  KemForge is an open-source project that relies on community support. If you find KemForge useful, please consider sponsoring us on Open Collective: https://opencollective.com/connecting-apps . Your sponsorship helps us maintain and improve the project — and as a sponsor, you can get your company logo featured on the README page. Feature requests from sponsors can be given priority. 
-  Want to contribute as a developer? See https://github.com/ConnectingApps/kemforge and create a pull request. We welcome contributions of all kinds, including bug fixes, new features, documentation improvements, and more.
+
+    ./kemforge -o /dev/null -s -w "%{http_code}\n" https://example.com
+
+  will return the HTTP status code of the response, just like curl, but
+  it also prints the PQC status of the server:
+
+    TLS DATA:
+    TlsVersion:       1.3
+    Cipher:           TLS_AES_128_GCM_SHA256
+    KeyExchangeGroup: X25519MLKEM768
+    Status:           This server supports post-quantum cryptography
+                      and has protection against quantum attacks.
+
+    HTTP status: 200
+
+  KemForge is an open-source project that relies on community support.
+  If you find KemForge useful, please consider sponsoring us on Open
+  Collective: https://opencollective.com/connecting-apps
+  Your sponsorship helps us maintain and improve the project — and as a
+  sponsor, you can get your company logo featured on the README page.
+  Feature requests from sponsors can be given priority.
+
+  Want to contribute as a developer? See
+  https://github.com/ConnectingApps/kemforge and create a pull request.
+  We welcome contributions of all kinds, including bug fixes, new
+  features, documentation improvements, and more.
 
 grade: stable
 confinement: strict
