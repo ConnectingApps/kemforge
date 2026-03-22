@@ -1,6 +1,14 @@
 name: kemforge
 base: core24
 version: '1.3.2'
+title: KemForge
+license: GPL-3.0-only
+icon: snap/gui/icon.png
+website: https://github.com/ConnectingApps/kemforge
+issues: https://github.com/ConnectingApps/kemforge/issues
+source-code: https://github.com/ConnectingApps/kemforge
+donation: https://opencollective.com/connecting-apps
+contact: https://github.com/ConnectingApps/kemforge/issues
 summary: curl-compatible CLI tool with post-quantum cryptography support
 description: |
   KemForge is a modern, curl-compatible CLI tool for making web requests,
