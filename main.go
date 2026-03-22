@@ -86,7 +86,7 @@ func main() {
 		}
 
 		if opts.ShowVersion {
-			fmt.Println("kemforge (curl-compatible) version 1.3.0")
+			fmt.Println("kemforge (curl-compatible) version 1.3.2")
 			continue
 		}
 
