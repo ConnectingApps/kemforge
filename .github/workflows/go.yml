@@ -9,10 +9,17 @@ on:
   pull_request:
     branches: [ "main", "feature/**", "copilot/**", "dependabot/**", "**-macos" ]
 
-env:
-  ENABLE_PUBLISH: 'true'
 
 jobs:
+
+  publish_config:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.config.outputs.enabled }}
+    steps:
+      - name: Set publish flag
+        id: config
+        run: echo "enabled=false" >> $GITHUB_OUTPUT  # Change to 'false' to disable publishing
 
   verify_test_script:
     runs-on: ubuntu-latest
@@ -197,8 +204,8 @@ jobs:
         path: kemforge/kemforge.*.nupkg
 
   deploychoco:
-    needs: [chocobuild]
-    if: env.ENABLE_PUBLISH == 'true'
+    needs: [chocobuild, publish_config]
+    if: needs.publish_config.outputs.enabled == 'true'
     runs-on: windows-latest
     environment: chocolatey
     steps:
@@ -240,8 +247,8 @@ jobs:
         path: kemforge_*.snap
 
   publish_snap:
-    needs: [build_snap]
-    if: env.ENABLE_PUBLISH == 'true' && github.ref_name == 'main'
+    needs: [build_snap, publish_config]
+    if: needs.publish_config.outputs.enabled == 'true' && github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
     - name: Download snap artifact
