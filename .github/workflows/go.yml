@@ -183,6 +183,16 @@ jobs:
         Set-Location kemforge
         choco pack
 
+    - name: Install Chocolatey package
+      shell: pwsh
+      run: |
+        Set-Location kemforge
+        choco install kemforge --source . -y
+
+    - name: Verify kemforge installation
+      shell: pwsh
+      run: kemforge -I https://www.google.com
+
     - name: Upload Chocolatey package artifact
       uses: actions/upload-artifact@v4
       with:
