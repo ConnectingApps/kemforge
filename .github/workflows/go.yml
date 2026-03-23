@@ -193,6 +193,24 @@ jobs:
         name: choco-package
         path: kemforge/kemforge.*.nupkg
 
+  deploychoco:
+    needs: [chocobuild]
+    runs-on: windows-latest
+    environment: chocolatey
+    steps:
+    - name: Download Chocolatey package artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: choco-package
+
+    - name: Push Chocolatey package
+      shell: pwsh
+      env:
+        CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+      run: |
+        $pkg = (Get-Item *.nupkg).FullName
+        choco push $pkg --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+
   build_snap:
     needs: [verify_install]
     runs-on: ubuntu-latest

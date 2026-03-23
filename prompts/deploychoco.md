@@ -1,8 +1,8 @@
-Create a GitHub Actions job named `deploy` that publishes a Chocolatey package to the official Chocolatey repository.
+Create a GitHub Actions job named `deploychoco` that publishes a Chocolatey package to the official Chocolatey repository.
 
 Requirements:
 
-* The job depends on a previous job named `build` using `needs: build`
+* The job depends on a previous job named `chocobuild`
 
 * Runs on `windows-latest`
 
