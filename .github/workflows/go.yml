@@ -145,15 +145,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Download snap artifact
+      if: github.ref_name == 'main'
       uses: actions/download-artifact@v4
       with:
         name: snap-package
 
     - name: Resolve snap filename
+      if: github.ref_name == 'main'
       id: find_snap
       run: echo "snap=$(ls kemforge_*.snap)" >> $GITHUB_OUTPUT
 
     - name: Publish snap to Snap Store
+      if: github.ref_name == 'main'
       uses: snapcore/action-publish@v1
       env:
         SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
