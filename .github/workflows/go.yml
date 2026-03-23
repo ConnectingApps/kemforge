@@ -170,12 +170,6 @@ jobs:
         )
         $lines | Set-Content -Path kemforge/tools/chocolateyInstall.ps1 -Encoding utf8
 
-    - name: Install Chocolatey
-      shell: pwsh
-      run: |
-        Set-ExecutionPolicy Bypass -Scope Process -Force
-        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 
     - name: Pack Chocolatey package
       shell: pwsh
