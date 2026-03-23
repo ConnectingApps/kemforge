@@ -6,6 +6,7 @@ name: Go
 on:
   push:
     branches: [ "main", "feature/**", "copilot/**", "dependabot/**", "**-macos" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main", "feature/**", "copilot/**", "dependabot/**", "**-macos" ]
 
@@ -115,6 +116,87 @@ jobs:
     - name: Run kemforge
       if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       run: kemforge -I https://www.google.com
+
+  chocobuild:
+    needs: [verify_install]
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+
+    - name: Extract version from tag
+      id: get_version
+      shell: pwsh
+      run: |
+        $version = "${{ github.ref_name }}".TrimStart('v')
+        echo "version=$version" | Out-File -Append -FilePath $env:GITHUB_OUTPUT -Encoding utf8
+
+    - name: Build Windows binary
+      shell: pwsh
+      run: |
+        $env:GOOS = "windows"
+        $env:GOARCH = "amd64"
+        go build -v -o kemforge.exe .
+
+    - name: Create Chocolatey package structure
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path kemforge/tools
+        Copy-Item kemforge.exe kemforge/tools/kemforge.exe
+
+    - name: Generate nuspec file
+      shell: pwsh
+      run: |
+        $version = "${{ steps.get_version.outputs.version }}"
+        $lines = @(
+          '<?xml version="1.0" encoding="utf-8"?>',
+          '<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">',
+          '  <metadata>',
+          '    <id>kemforge</id>',
+          "    <version>$version</version>",
+          '    <title>KemForge</title>',
+          '    <authors>Daan Acohen</authors>',
+          '    <projectUrl>https://github.com/ConnectingApps/kemforge</projectUrl>',
+          '    <licenseUrl>https://github.com/ConnectingApps/kemforge/blob/main/LICENSE</licenseUrl>',
+          '    <tags>curl http https post-quantum cryptography pqc ml-kem kyber</tags>',
+          '    <description>KemForge is a modern, curl-compatible CLI tool for making web requests, built from the ground up with Post-Quantum Cryptography (PQC) support. It is the security-first successor to curl, designed to address the primary threat of the modern era: quantum attacks. No dependency on system TLS libraries — PQC works out of the box on every platform.</description>',
+          '  </metadata>',
+          '</package>'
+        )
+        $lines | Set-Content -Path kemforge/kemforge.nuspec -Encoding utf8
+
+    - name: Create chocolateyInstall.ps1
+      shell: pwsh
+      run: |
+        $lines = @(
+          '$toolsDir = Split-Path -parent $MyInvocation.MyCommand.Definition',
+          'Install-BinFile -Name ''kemforge'' -Path "$toolsDir\kemforge.exe"'
+        )
+        $lines | Set-Content -Path kemforge/tools/chocolateyInstall.ps1 -Encoding utf8
+
+    - name: Install Chocolatey
+      shell: pwsh
+      run: |
+        Set-ExecutionPolicy Bypass -Scope Process -Force
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+    - name: Pack Chocolatey package
+      shell: pwsh
+      run: |
+        Set-Location kemforge
+        choco pack
+
+    - name: Upload Chocolatey package artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: choco-package
+        path: kemforge/kemforge.*.nupkg
 
   build_snap:
     needs: [verify_install]

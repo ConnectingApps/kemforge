@@ -1,4 +1,4 @@
-Create a GitHub Actions job named `build` that runs on `windows-latest` and prepares a Chocolatey package for a Go CLI application.
+Create a GitHub Actions job named `chocobuild` that runs on `windows-latest` and prepares a Chocolatey package for a Go CLI application.
 
 Requirements:
 
