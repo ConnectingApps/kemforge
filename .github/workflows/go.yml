@@ -9,6 +9,9 @@ on:
   pull_request:
     branches: [ "main", "feature/**", "copilot/**", "dependabot/**", "**-macos" ]
 
+env:
+  ENABLE_PUBLISH: 'true'
+
 jobs:
 
   verify_test_script:
@@ -195,6 +198,7 @@ jobs:
 
   deploychoco:
     needs: [chocobuild]
+    if: env.ENABLE_PUBLISH == 'true'
     runs-on: windows-latest
     environment: chocolatey
     steps:
@@ -237,21 +241,19 @@ jobs:
 
   publish_snap:
     needs: [build_snap]
+    if: env.ENABLE_PUBLISH == 'true' && github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
     - name: Download snap artifact
-      if: github.ref_name == 'main'
       uses: actions/download-artifact@v4
       with:
         name: snap-package
 
     - name: Resolve snap filename
-      if: github.ref_name == 'main'
       id: find_snap
       run: echo "snap=$(ls kemforge_*.snap)" >> $GITHUB_OUTPUT
 
     - name: Publish snap to Snap Store
-      if: github.ref_name == 'main'
       uses: snapcore/action-publish@v1
       env:
         SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
