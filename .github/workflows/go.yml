@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Set publish flag
         id: config
-        run: echo "enabled=false" >> $GITHUB_OUTPUT  # Change to 'false' to disable publishing
+        run: echo "enabled=true" >> $GITHUB_OUTPUT  # Change to 'false' to disable publishing
 
   verify_test_script:
     runs-on: ubuntu-latest
@@ -165,7 +165,10 @@ jobs:
           '    <projectUrl>https://github.com/ConnectingApps/kemforge</projectUrl>',
           '    <licenseUrl>https://github.com/ConnectingApps/kemforge/blob/main/LICENSE</licenseUrl>',
           '    <tags>curl http https post-quantum cryptography pqc ml-kem kyber</tags>',
+          '    <summary>A curl-compatible CLI tool with built-in Post-Quantum Cryptography (PQC) support.</summary>',
           '    <description>KemForge is a modern, curl-compatible CLI tool for making web requests, built from the ground up with Post-Quantum Cryptography (PQC) support. It is the security-first successor to curl, designed to address the primary threat of the modern era: quantum attacks. No dependency on system TLS libraries — PQC works out of the box on every platform.</description>',
+          '    <releaseNotes>https://github.com/ConnectingApps/kemforge/releases</releaseNotes>',
+          '    <packageSourceUrl>https://github.com/ConnectingApps/kemforge</packageSourceUrl>',
           '  </metadata>',
           '</package>'
         )
@@ -179,6 +182,44 @@ jobs:
           'Install-BinFile -Name ''kemforge'' -Path "$toolsDir\kemforge.exe"'
         )
         $lines | Set-Content -Path kemforge/tools/chocolateyInstall.ps1 -Encoding utf8
+
+    - name: Create chocolateyUninstall.ps1
+      shell: pwsh
+      run: |
+        $lines = @(
+          'Uninstall-BinFile -Name ''kemforge'''
+        )
+        $lines | Set-Content -Path kemforge/tools/chocolateyUninstall.ps1 -Encoding utf8
+
+    - name: Create LICENSE.txt
+      shell: pwsh
+      run: |
+        $lines = @(
+          'GNU General Public License v3.0',
+          '',
+          'KemForge is licensed under the GNU General Public License v3.0.',
+          'Full license text: https://github.com/ConnectingApps/kemforge/blob/main/LICENSE'
+        )
+        $lines | Set-Content -Path kemforge/tools/LICENSE.txt -Encoding utf8
+
+    - name: Create VERIFICATION.txt
+      shell: pwsh
+      run: |
+        $sha = '${{ github.sha }}'
+        $lines = @(
+          'VERIFICATION',
+          '',
+          'This package was built from source. The binary (kemforge.exe) was NOT downloaded',
+          'from an external URL — it was compiled directly from the repository source code.',
+          '',
+          "Repository : https://github.com/ConnectingApps/kemforge",
+          "Commit SHA : $sha",
+          'Build command: go build -o kemforge.exe .',
+          '',
+          'To verify, clone the repository at the above commit and run the build command.',
+          'The resulting kemforge.exe should match the one included in this package.'
+        )
+        $lines | Set-Content -Path kemforge/tools/VERIFICATION.txt -Encoding utf8
 
 
     - name: Pack Chocolatey package
