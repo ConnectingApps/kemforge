@@ -20,7 +20,7 @@ description: |
 
   For example, this command:
 
-    ./kemforge -o /dev/null -s -w "%{http_code}\n" https://example.com
+    kemforge -o /dev/null -s -w "%{http_code}\n" https://example.com
 
   will return the HTTP status code of the response, just like curl, but
   it also prints the PQC status of the server:
