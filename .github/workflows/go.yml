@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Set publish flag
         id: config
-        run: echo "enabled=true" >> $GITHUB_OUTPUT  # Change to 'false' to disable publishing
+        run: echo "enabled=false" >> $GITHUB_OUTPUT  # Change to 'false' to disable publishing
 
   verify_test_script:
     runs-on: ubuntu-latest
