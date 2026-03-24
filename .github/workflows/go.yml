@@ -265,6 +265,7 @@ jobs:
 
   release_windows:
     needs: [verify_install]
+    if: needs.publish_config.outputs.enabled == 'true' && github.ref_name == 'main'
     runs-on: windows-latest
     permissions:
       contents: write
