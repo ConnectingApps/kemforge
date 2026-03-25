@@ -127,7 +127,7 @@ jobs:
       run: kemforge -I https://www.google.com
 
   chocobuild:
-    needs: [verify_install]
+    needs: [verify_install, publish_config]
     if: needs.publish_config.outputs.enabled == 'true' && github.ref_name == 'main'
     runs-on: windows-latest
     steps:
@@ -265,7 +265,7 @@ jobs:
         choco push $pkg --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
 
   release_windows:
-    needs: [verify_install]
+    needs: [verify_install, publish_config]
     if: needs.publish_config.outputs.enabled == 'true' && github.ref_name == 'main'
     runs-on: windows-latest
     permissions:
