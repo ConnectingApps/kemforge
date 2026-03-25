@@ -127,7 +127,8 @@ jobs:
       run: kemforge -I https://www.google.com
 
   chocobuild:
-    needs: [verify_install]
+    needs: [verify_install, publish_config]
+    if: needs.publish_config.outputs.enabled == 'true' && github.ref_name == 'main'
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v5
@@ -239,14 +240,14 @@ jobs:
       run: kemforge -I https://www.google.com
 
     - name: Upload Chocolatey package artifact
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: choco-package
         path: kemforge/kemforge.*.nupkg
 
   deploychoco:
     needs: [chocobuild, publish_config]
-    if: needs.publish_config.outputs.enabled == 'true'
+    if: needs.publish_config.outputs.enabled == 'true' && github.ref_name == 'main'
     runs-on: windows-latest
     environment: chocolatey
     steps:
@@ -262,6 +263,52 @@ jobs:
       run: |
         $pkg = (Get-Item *.nupkg).FullName
         choco push $pkg --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+
+  release_windows:
+    needs: [verify_install, publish_config]
+    if: needs.publish_config.outputs.enabled == 'true' && github.ref_name == 'main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+
+    - name: Build Windows binary
+      shell: pwsh
+      run: |
+        $env:GOOS = "windows"
+        $env:GOARCH = "amd64"
+        go build -v -o kemforge.exe .
+
+    - name: Create zip
+      shell: pwsh
+      run: Compress-Archive -Path kemforge.exe -DestinationPath kemforge.zip
+
+    - name: Compute SHA256
+      shell: pwsh
+      run: |
+        $hash = (Get-FileHash kemforge.zip -Algorithm SHA256).Hash
+        Write-Output "SHA256: $hash"
+
+    - name: Create GitHub Release
+      id: release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v1.3.2
+        name: v1.3.2
+        files: kemforge.zip
+        token: ${{ github.token }}
+
+    - name: Echo asset download URL
+      shell: pwsh
+      run: |
+        $assets = '${{ steps.release.outputs.assets }}' | ConvertFrom-Json
+        Write-Output "Download URL: $($assets[0].browser_download_url)"
 
   build_snap:
     needs: [verify_install]
@@ -282,7 +329,7 @@ jobs:
       run: /snap/bin/kemforge -I https://www.google.com
 
     - name: Upload snap artifact
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: snap-package
         path: kemforge_*.snap
