@@ -247,7 +247,7 @@ jobs:
 
   deploychoco:
     needs: [chocobuild, publish_config]
-    if: needs.publish_config.outputs.enabled == 'true'
+    if: needs.publish_config.outputs.enabled == 'true' && github.ref_name == 'main'
     runs-on: windows-latest
     environment: chocolatey
     steps:
