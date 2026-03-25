@@ -171,7 +171,7 @@ source ~/.bashrc
 go install github.com/ConnectingApps/kemforge@latest
 ```
 
-### macOS
+### macOS via `go install`
 
 1. Install Go (if not already installed) using [Homebrew](https://brew.sh/):
 
@@ -191,6 +191,17 @@ source ~/.zshrc
 ```bash
 go install github.com/ConnectingApps/kemforge@latest
 ```
+
+### macOS via `Homebrew`
+
+KemForge can be installed via [Homebrew](https://brew.sh). Open Terminal and run:
+
+```bash
+brew tap ConnectingApps/kemforge
+brew install kemforge
+```
+
+KemForge works on both Apple Silicon (M1/M2/M3/M4) and Intel Macs.
 
 ### Windows
 
@@ -223,7 +234,7 @@ kemforge -I https://www.google.com
 
 ### Build from source
 
-Requires **Go 1.25+**.
+Requires **Go 1.26**.
 
 ```bash
 git clone https://github.com/ConnectingApps/kemforge.git
