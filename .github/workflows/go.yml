@@ -460,7 +460,7 @@ jobs:
         docker run --rm \
           -v "${{ github.workspace }}:/workspace" \
           -w /workspace \
-          snapcore/snapcraft:stable \
+          snapcore/snapcraft:edge \
           snapcraft --destructive-mode
 
     - name: Install snap
