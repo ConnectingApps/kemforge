@@ -459,8 +459,9 @@ jobs:
       run: |
         sudo systemctl enable --now snapd
         sudo snap wait system seed.loaded
-        sudo snap refresh snapd || true
-        sudo snap set system refresh.hold="$(date --date='tomorrow' +%Y-%m-%dT%H:%M:%S%:z)"
+        # Solution 2: force snapd to update itself NOW, before action-build starts,
+        # so the "Waiting for automatic snapd restart..." stall cannot occur mid-build.
+        sudo snap install snapd
         sudo snap wait system seed.loaded
 
     # Step 1 & 2: Replace manual snapcraft install + wrong `pack` command with the
