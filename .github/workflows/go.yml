@@ -451,7 +451,7 @@ jobs:
 
   build_snap:
     needs: [verify_install]
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
 
