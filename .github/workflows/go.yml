@@ -460,7 +460,7 @@ jobs:
         docker run --rm \
           -v "${{ github.workspace }}:/workspace" \
           -w /workspace \
-          diddledani/snapcraft:core24 \
+          snapcore/snapcraft:stable \
           snapcraft pack --destructive-mode
 
     - name: Install snap
