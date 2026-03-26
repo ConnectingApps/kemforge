@@ -461,7 +461,7 @@ jobs:
           -v "${{ github.workspace }}:/workspace" \
           -w /workspace \
           snapcore/snapcraft:stable \
-          snapcraft pack --destructive-mode
+          snapcraft --destructive-mode
 
     - name: Install snap
       run: sudo snap install --dangerous ./kemforge_*.snap
