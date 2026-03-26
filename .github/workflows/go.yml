@@ -449,6 +449,7 @@ jobs:
         $assets = '${{ steps.release.outputs.assets }}' | ConvertFrom-Json
         Write-Output "Download URL: $($assets[0].browser_download_url)"
 
+
   build_snap:
     needs: [verify_install]
     runs-on: ubuntu-latest
