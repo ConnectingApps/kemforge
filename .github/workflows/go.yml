@@ -144,55 +144,38 @@ jobs:
         $env:GOARCH = "amd64"
         go build -v -o kemforge.exe .
 
-    - name: Install ImageMagick
-      shell: pwsh
-      run: choco install imagemagick -y
-
-    - name: Generate icon assets
+    - name: Create MSIX package
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Force -Path packaging/Assets
 
         Copy-Item kemforge.exe packaging/kemforge.exe
 
-        $sourceIcon = "snap/gui/icon.png"
-        $sizes = @(16, 32, 44, 48, 50, 150, 256, 310)
+        Add-Type -AssemblyName System.Drawing
+        $sourceIcon = [System.Drawing.Image]::FromFile("snap/gui/icon.png")
 
-        foreach ($size in $sizes) {
-          magick $sourceIcon -resize "${size}x${size}" -filter Lanczos packaging/Assets/icon${size}x${size}.png
+        foreach ($size in @(44, 150)) {
+          $bmp = New-Object System.Drawing.Bitmap $size, $size
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+          $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+          $g.DrawImage($sourceIcon, 0, 0, $size, $size)
+          $g.Dispose()
+          $bmp.Save("packaging/Assets/icon${size}x${size}.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          $bmp.Dispose()
         }
 
-        Copy-Item packaging/Assets/icon50x50.png packaging/Assets/StoreLogo.png
+        $bmp = New-Object System.Drawing.Bitmap 50, 50
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+        $g.DrawImage($sourceIcon, 0, 0, 50, 50)
+        $g.Dispose()
+        $bmp.Save("packaging/Assets/StoreLogo.png", [System.Drawing.Imaging.ImageFormat]::Png)
+        $bmp.Dispose()
 
-    - name: Validate icon assets
-      shell: pwsh
-      run: |
-        $requiredIcons = @(
-          "packaging/Assets/icon16x16.png",
-          "packaging/Assets/icon32x32.png",
-          "packaging/Assets/icon44x44.png",
-          "packaging/Assets/icon48x48.png",
-          "packaging/Assets/icon50x50.png",
-          "packaging/Assets/icon150x150.png",
-          "packaging/Assets/icon256x256.png",
-          "packaging/Assets/icon310x310.png",
-          "packaging/Assets/StoreLogo.png"
-        )
-        $missing = @()
-        foreach ($icon in $requiredIcons) {
-          if (-not (Test-Path $icon)) {
-            $missing += $icon
-          }
-        }
-        if ($missing.Count -gt 0) {
-          Write-Error "Missing required icon files: $($missing -join ', ')"
-          exit 1
-        }
-        Write-Output "All required icon files are present."
+        $sourceIcon.Dispose()
 
-    - name: Create MSIX package
-      shell: pwsh
-      run: |
         $manifest = @'
         <?xml version="1.0" encoding="utf-8"?>
         <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -209,7 +192,7 @@ jobs:
             <DisplayName>KemForge</DisplayName>
             <PublisherDisplayName>ConnectingApps</PublisherDisplayName>
             <Description>A curl-compatible CLI tool with Post-Quantum Cryptography support</Description>
-            <Logo>Assets\icon50x50.png</Logo>
+            <Logo>Assets\StoreLogo.png</Logo>
           </Properties>
           <Resources>
             <Resource Language="en-us" />
@@ -223,8 +206,7 @@ jobs:
                                   Description="KemForge CLI"
                                   BackgroundColor="transparent"
                                   Square150x150Logo="Assets\icon150x150.png"
-                                  Square44x44Logo="Assets\icon44x44.png"
-                                  Square310x310Logo="Assets\icon310x310.png" />
+                                  Square44x44Logo="Assets\icon44x44.png" />
               <Extensions>
                 <uap3:Extension Category="windows.appExecutionAlias">
                   <uap3:AppExecutionAlias>
