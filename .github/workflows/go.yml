@@ -152,10 +152,14 @@ jobs:
         Copy-Item kemforge.exe packaging/kemforge.exe
 
         Add-Type -AssemblyName System.Drawing
+        $sourceIcon = [System.Drawing.Image]::FromFile("snap/gui/icon.png")
+
         foreach ($size in @(44, 150)) {
           $bmp = New-Object System.Drawing.Bitmap $size, $size
           $g = [System.Drawing.Graphics]::FromImage($bmp)
-          $g.Clear([System.Drawing.Color]::Transparent)
+          $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+          $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+          $g.DrawImage($sourceIcon, 0, 0, $size, $size)
           $g.Dispose()
           $bmp.Save("packaging/Assets/icon${size}x${size}.png", [System.Drawing.Imaging.ImageFormat]::Png)
           $bmp.Dispose()
@@ -163,10 +167,14 @@ jobs:
 
         $bmp = New-Object System.Drawing.Bitmap 50, 50
         $g = [System.Drawing.Graphics]::FromImage($bmp)
-        $g.Clear([System.Drawing.Color]::Transparent)
+        $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+        $g.DrawImage($sourceIcon, 0, 0, 50, 50)
         $g.Dispose()
         $bmp.Save("packaging/Assets/StoreLogo.png", [System.Drawing.Imaging.ImageFormat]::Png)
         $bmp.Dispose()
+
+        $sourceIcon.Dispose()
 
         $manifest = @'
         <?xml version="1.0" encoding="utf-8"?>
