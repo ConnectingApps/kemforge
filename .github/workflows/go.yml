@@ -154,7 +154,7 @@ jobs:
         Add-Type -AssemblyName System.Drawing
         $sourceIcon = [System.Drawing.Image]::FromFile("snap/gui/icon.png")
 
-        foreach ($size in @(44, 150)) {
+        foreach ($size in @(44, 48, 150, 256)) {
           $bmp = New-Object System.Drawing.Bitmap $size, $size
           $g = [System.Drawing.Graphics]::FromImage($bmp)
           $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
