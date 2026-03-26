@@ -455,6 +455,14 @@ jobs:
     steps:
     - uses: actions/checkout@v5
 
+    - name: Prepare snapd
+      run: |
+        sudo snap wait system seed.loaded
+        sudo snap set system refresh.hold="$(date --date='today+1day' +%Y-%m-%dT%H:%M:%S%:z)"
+        sudo killall -q snapd || true
+        sleep 2
+        sudo systemctl restart snapd.service
+
     - uses: snapcore/action-build@v1
       id: build
 
