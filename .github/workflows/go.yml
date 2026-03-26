@@ -455,14 +455,11 @@ jobs:
     steps:
     - uses: actions/checkout@v5
 
-    - name: Install snapcraft
-      run: sudo snap install snapcraft --classic
-
-    - name: Build snap
-      run: sudo snapcraft pack --destructive-mode
+    - uses: snapcore/action-build@v1
+      id: build
 
     - name: Install snap
-      run: sudo snap install --dangerous ./kemforge_*.snap
+      run: sudo snap install --dangerous ${{ steps.build.outputs.snap }}
 
     - name: Smoke test snap
       run: /snap/bin/kemforge -I https://www.google.com
