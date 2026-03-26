@@ -464,14 +464,22 @@ jobs:
         sudo snap install snapd
         sudo snap wait system seed.loaded
 
-    # Step 1 & 2: Replace manual snapcraft install + wrong `pack` command with the
-    # official Canonical action. It sets up LXD, installs snapcraft, runs the full
-    # build lifecycle, and exposes the resolved snap path via `steps.build.outputs.snap`.
+    # Set up LXD so snapcraft can use it as its build provider.
+    - name: Set up LXD
+      uses: canonical/setup-lxd@v0.1.2
+
+    # Install snapcraft via snap (classic confinement required).
+    - name: Install snapcraft
+      run: sudo snap install snapcraft --classic
+
+    # Use `snapcraft pack` explicitly — the new canonical command for the full
+    # build lifecycle in snapcraft 8.x, replacing the deprecated bare `snapcraft`.
     - name: Build snap
       id: build
-      uses: snapcore/action-build@v1
+      run: |
+        snapcraft pack --use-lxd
+        echo "snap=$(ls *.snap | head -1)" >> $GITHUB_OUTPUT
 
-    # Step 2: Use the action output instead of a fragile glob.
     - name: Install snap
       run: sudo snap install --dangerous ${{ steps.build.outputs.snap }}
 
@@ -483,10 +491,6 @@ jobs:
     - name: Smoke test snap
       run: /snap/bin/kemforge -I https://www.google.com
 
-    # Step 4: Upload using the resolved path from the action output, not a glob.
-    # Step 5: The publish_snap job's `ls kemforge_*.snap` glob still resolves
-    # correctly after download because the filename (e.g. kemforge_1.3.2_amd64.snap)
-    # is unchanged — no further edits needed there.
     - name: Upload snap artifact
       uses: actions/upload-artifact@v6
       with:
