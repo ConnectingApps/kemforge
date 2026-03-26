@@ -455,25 +455,34 @@ jobs:
     steps:
     - uses: actions/checkout@v5
 
+    # Step 1 & 2: Replace manual snapcraft install + wrong `pack` command with the
+    # official Canonical action. It sets up LXD, installs snapcraft, runs the full
+    # build lifecycle, and exposes the resolved snap path via `steps.build.outputs.snap`.
     - name: Build snap
-      run: |
-        docker run --rm \
-          -v "${{ github.workspace }}:/workspace" \
-          -w /workspace \
-          snapcore/snapcraft:edge \
-          snapcraft --destructive-mode
+      id: build
+      uses: snapcore/action-build@v1
 
+    # Step 2: Use the action output instead of a fragile glob.
     - name: Install snap
-      run: sudo snap install --dangerous ./kemforge_*.snap
+      run: sudo snap install --dangerous ${{ steps.build.outputs.snap }}
+
+    # Step 3: Explicitly connect the network interface — `--dangerous` installs do
+    # not auto-connect plugs, so without this the smoke test is blocked by AppArmor.
+    - name: Connect network interface
+      run: sudo snap connect kemforge:network
 
     - name: Smoke test snap
       run: /snap/bin/kemforge -I https://www.google.com
 
+    # Step 4: Upload using the resolved path from the action output, not a glob.
+    # Step 5: The publish_snap job's `ls kemforge_*.snap` glob still resolves
+    # correctly after download because the filename (e.g. kemforge_1.3.2_amd64.snap)
+    # is unchanged — no further edits needed there.
     - name: Upload snap artifact
       uses: actions/upload-artifact@v6
       with:
         name: snap-package
-        path: kemforge_*.snap
+        path: ${{ steps.build.outputs.snap }}
 
   publish_snap:
     needs: [build_snap, publish_config]
