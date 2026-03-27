@@ -1,6 +1,6 @@
 name: kemforge
 base: core24
-version: '1.3.2'
+version: '1.3.3'
 title: KemForge
 license: GPL-3.0-only
 icon: snap/gui/icon.png

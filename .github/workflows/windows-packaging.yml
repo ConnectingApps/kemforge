@@ -204,7 +204,6 @@ jobs:
         choco push $pkg --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
 
   release_windows:
-    if: inputs.publish_enabled == 'true' && github.ref_name == 'main'
     runs-on: windows-latest
     permissions:
       contents: write
@@ -285,8 +284,8 @@ jobs:
       id: release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v1.3.2
-        name: v1.3.2
+        tag_name: v1.3.3
+        name: v1.3.3
         files: kemforge.zip
         token: ${{ github.token }}
 

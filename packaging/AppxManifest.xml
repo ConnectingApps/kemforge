@@ -7,7 +7,7 @@
          IgnorableNamespaces="uap uap3 desktop rescap">
   <Identity Name="ConnectingApps.KemForge"
             Publisher="CN=Connecting Apps, O=Connecting Apps, STREET=Wagenstraat 83 D, L=Den Haag, S=Zuid-Holland, C=NL, PostalCode=2512AR"
-            Version="1.3.2.0"
+            Version="1.3.3.0"
             ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>KemForge</DisplayName>
