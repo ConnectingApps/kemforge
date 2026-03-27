@@ -26,22 +26,6 @@ jobs:
         $env:GOARCH = "amd64"
         go build -v -o kemforge.exe .
 
-    - name: Update Defender signatures
-      shell: pwsh
-      run: Update-MpSignature
-
-    - name: Scan binary for malware
-      shell: pwsh
-      run: |
-        $target = "$env:GITHUB_WORKSPACE\kemforge.exe"
-        Start-MpScan -ScanType CustomScan -ScanPath $target
-        $threats = Get-MpThreat
-        if ($threats) {
-          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
-          exit 1
-        }
-        Write-Output "No threats detected in $target"
-
     - name: Create MSIX package
       shell: pwsh
       run: |
@@ -51,18 +35,6 @@ jobs:
         $makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\10.*\x64\makeappx.exe" |
           Sort-Object FullName -Descending | Select-Object -First 1
         & $makeappx.FullName pack /d packaging /p kemforge.msix /o
-
-    - name: Scan MSIX for malware
-      shell: pwsh
-      run: |
-        $target = "$env:GITHUB_WORKSPACE\kemforge.msix"
-        Start-MpScan -ScanType CustomScan -ScanPath $target
-        $threats = Get-MpThreat
-        if ($threats) {
-          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
-          exit 1
-        }
-        Write-Output "No threats detected in $target"
 
     - name: Azure Login
       uses: azure/login@v2
@@ -83,6 +55,22 @@ jobs:
         file-digest: SHA256
         timestamp-rfc3161: http://timestamp.acs.microsoft.com
         timestamp-digest: SHA256
+
+    - name: Update Defender signatures
+      shell: pwsh
+      run: Update-MpSignature
+
+    - name: Scan signed MSIX for malware
+      shell: pwsh
+      run: |
+        $target = "$env:GITHUB_WORKSPACE\kemforge.msix"
+        Start-MpScan -ScanType CustomScan -ScanPath $target
+        $threats = Get-MpThreat
+        if ($threats) {
+          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
+          exit 1
+        }
+        Write-Output "No threats detected in $target"
 
     - name: Remove unsigned executable
       shell: pwsh
@@ -119,22 +107,6 @@ jobs:
         $env:GOARCH = "amd64"
         go build -v -o kemforge.exe .
 
-    - name: Update Defender signatures
-      shell: pwsh
-      run: Update-MpSignature
-
-    - name: Scan executable for malware
-      shell: pwsh
-      run: |
-        $target = "$env:GITHUB_WORKSPACE\kemforge.exe"
-        Start-MpScan -ScanType CustomScan -ScanPath $target
-        $threats = Get-MpThreat
-        if ($threats) {
-          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
-          exit 1
-        }
-        Write-Output "No threats detected in $target"
-
     - name: Azure Login
       uses: azure/login@v2
       with:
@@ -154,6 +126,22 @@ jobs:
         file-digest: SHA256
         timestamp-rfc3161: http://timestamp.acs.microsoft.com
         timestamp-digest: SHA256
+
+    - name: Update Defender signatures
+      shell: pwsh
+      run: Update-MpSignature
+
+    - name: Scan signed executable for malware
+      shell: pwsh
+      run: |
+        $target = "$env:GITHUB_WORKSPACE\kemforge.exe"
+        Start-MpScan -ScanType CustomScan -ScanPath $target
+        $threats = Get-MpThreat
+        if ($threats) {
+          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
+          exit 1
+        }
+        Write-Output "No threats detected in $target"
 
     - name: Prepare Chocolatey package structure
       shell: pwsh
@@ -223,22 +211,6 @@ jobs:
         $env:GOARCH = "amd64"
         go build -v -o kemforge.exe .
 
-    - name: Update Defender signatures
-      shell: pwsh
-      run: Update-MpSignature
-
-    - name: Scan executable for malware
-      shell: pwsh
-      run: |
-        $target = "$env:GITHUB_WORKSPACE\kemforge.exe"
-        Start-MpScan -ScanType CustomScan -ScanPath $target
-        $threats = Get-MpThreat
-        if ($threats) {
-          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
-          exit 1
-        }
-        Write-Output "No threats detected in $target"
-
     - name: Azure Login
       uses: azure/login@v2
       with:
@@ -258,6 +230,22 @@ jobs:
         file-digest: SHA256
         timestamp-rfc3161: http://timestamp.acs.microsoft.com
         timestamp-digest: SHA256
+
+    - name: Update Defender signatures
+      shell: pwsh
+      run: Update-MpSignature
+
+    - name: Scan signed executable for malware
+      shell: pwsh
+      run: |
+        $target = "$env:GITHUB_WORKSPACE\kemforge.exe"
+        Start-MpScan -ScanType CustomScan -ScanPath $target
+        $threats = Get-MpThreat
+        if ($threats) {
+          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
+          exit 1
+        }
+        Write-Output "No threats detected in $target"
 
     - name: Create zip
       shell: pwsh
@@ -283,4 +271,3 @@ jobs:
       run: |
         $assets = '${{ steps.release.outputs.assets }}' | ConvertFrom-Json
         Write-Output "Download URL: $($assets[0].browser_download_url)"
-
