@@ -75,7 +75,6 @@ jobs:
         path: kemforge.msix
 
   chocobuild:
-    if: inputs.publish_enabled == 'true' && github.ref_name == 'main'
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v5
