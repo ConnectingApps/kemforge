@@ -1,0 +1,187 @@
+name: Windows Packaging
+
+on:
+  workflow_call:
+    inputs:
+      publish_enabled:
+        required: true
+        type: string
+
+jobs:
+
+  build_installer:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+
+    - name: Build Windows binary
+      shell: pwsh
+      run: |
+        $env:GOOS = "windows"
+        $env:GOARCH = "amd64"
+        go build -v -o kemforge.exe .
+
+    - name: Create MSIX package
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path packaging/Assets
+        Copy-Item kemforge.exe packaging/kemforge.exe
+        pwsh -File scripts/resize-icons.ps1
+        $makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\10.*\x64\makeappx.exe" |
+          Sort-Object FullName -Descending | Select-Object -First 1
+        & $makeappx.FullName pack /d packaging /p kemforge.msix /o
+
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
+
+    - name: Sign installer with Azure Trusted Signing
+      uses: azure/trusted-signing-action@v0.5.0
+      with:
+        azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+        endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+        trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+        certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+        files-folder: ${{ github.workspace }}
+        files-folder-filter: msix
+        file-digest: SHA256
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
+
+    - name: Remove unsigned executable
+      shell: pwsh
+      run: Remove-Item kemforge.exe
+
+    - name: Install signed MSIX package
+      shell: pwsh
+      run: Add-AppxPackage -Path kemforge.msix
+
+    - name: Validate installation
+      shell: pwsh
+      run: kemforge --help
+
+    - name: Upload signed installer
+      uses: actions/upload-artifact@v6
+      with:
+        name: kemforge-installer-signed
+        path: kemforge.msix
+
+  chocobuild:
+    if: inputs.publish_enabled == 'true' && github.ref_name == 'main'
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+
+    - name: Build Windows binary
+      shell: pwsh
+      run: |
+        $env:GOOS = "windows"
+        $env:GOARCH = "amd64"
+        go build -v -o kemforge.exe .
+
+    - name: Prepare Chocolatey package structure
+      shell: pwsh
+      run: |
+        Copy-Item kemforge.exe chocolatey/tools/kemforge.exe
+        (Get-Content scripts/VERIFICATION.txt.template) -replace 'COMMIT_SHA_PLACEHOLDER', '${{ github.sha }}' |
+          Set-Content chocolatey/tools/VERIFICATION.txt -Encoding utf8
+
+    - name: Pack Chocolatey package
+      shell: pwsh
+      run: |
+        Set-Location chocolatey
+        choco pack
+
+    - name: Install Chocolatey package
+      shell: pwsh
+      run: |
+        Set-Location chocolatey
+        choco install kemforge --source . -y
+
+    - name: Verify kemforge installation
+      shell: pwsh
+      run: kemforge -I https://www.google.com
+
+    - name: Upload Chocolatey package artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: choco-package
+        path: chocolatey/kemforge.*.nupkg
+
+  deploychoco:
+    needs: [chocobuild]
+    if: inputs.publish_enabled == 'true' && github.ref_name == 'main'
+    runs-on: windows-latest
+    environment: chocolatey
+    steps:
+    - name: Download Chocolatey package artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: choco-package
+
+    - name: Push Chocolatey package
+      shell: pwsh
+      env:
+        CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+      run: |
+        $pkg = (Get-Item *.nupkg).FullName
+        choco push $pkg --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
+
+  release_windows:
+    if: inputs.publish_enabled == 'true' && github.ref_name == 'main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+
+    - name: Build Windows binary
+      shell: pwsh
+      run: |
+        $env:GOOS = "windows"
+        $env:GOARCH = "amd64"
+        go build -v -o kemforge.exe .
+
+    - name: Create zip
+      shell: pwsh
+      run: Compress-Archive -Path kemforge.exe -DestinationPath kemforge.zip
+
+    - name: Compute SHA256
+      shell: pwsh
+      run: |
+        $hash = (Get-FileHash kemforge.zip -Algorithm SHA256).Hash
+        Write-Output "SHA256: $hash"
+
+    - name: Create GitHub Release
+      id: release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v1.3.2
+        name: v1.3.2
+        files: kemforge.zip
+        token: ${{ github.token }}
+
+    - name: Echo asset download URL
+      shell: pwsh
+      run: |
+        $assets = '${{ steps.release.outputs.assets }}' | ConvertFrom-Json
+        Write-Output "Download URL: $($assets[0].browser_download_url)"
+
