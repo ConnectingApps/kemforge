@@ -156,6 +156,18 @@ jobs:
         Set-Location chocolatey
         choco pack
 
+    - name: Scan Chocolatey package for malware
+      shell: pwsh
+      run: |
+        $target = (Get-Item "$env:GITHUB_WORKSPACE\chocolatey\kemforge.*.nupkg").FullName
+        Start-MpScan -ScanType CustomScan -ScanPath $target
+        $threats = Get-MpThreat
+        if ($threats) {
+          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
+          exit 1
+        }
+        Write-Output "No threats detected in $target"
+
     - name: Install Chocolatey package
       shell: pwsh
       run: |
@@ -250,6 +262,18 @@ jobs:
     - name: Create zip
       shell: pwsh
       run: Compress-Archive -Path kemforge.exe -DestinationPath kemforge.zip
+
+    - name: Scan signed zip for malware
+      shell: pwsh
+      run: |
+        $target = "$env:GITHUB_WORKSPACE\kemforge.zip"
+        Start-MpScan -ScanType CustomScan -ScanPath $target
+        $threats = Get-MpThreat
+        if ($threats) {
+          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
+          exit 1
+        }
+        Write-Output "No threats detected in $target"
 
     - name: Compute SHA256
       shell: pwsh
