@@ -26,6 +26,22 @@ jobs:
         $env:GOARCH = "amd64"
         go build -v -o kemforge.exe .
 
+    - name: Update Defender signatures
+      shell: pwsh
+      run: Update-MpSignature
+
+    - name: Scan binary for malware
+      shell: pwsh
+      run: |
+        $target = "$env:GITHUB_WORKSPACE\kemforge.exe"
+        Start-MpScan -ScanType CustomScan -ScanPath $target
+        $threats = Get-MpThreat
+        if ($threats) {
+          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
+          exit 1
+        }
+        Write-Output "No threats detected in $target"
+
     - name: Create MSIX package
       shell: pwsh
       run: |
@@ -35,6 +51,18 @@ jobs:
         $makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\10.*\x64\makeappx.exe" |
           Sort-Object FullName -Descending | Select-Object -First 1
         & $makeappx.FullName pack /d packaging /p kemforge.msix /o
+
+    - name: Scan MSIX for malware
+      shell: pwsh
+      run: |
+        $target = "$env:GITHUB_WORKSPACE\kemforge.msix"
+        Start-MpScan -ScanType CustomScan -ScanPath $target
+        $threats = Get-MpThreat
+        if ($threats) {
+          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
+          exit 1
+        }
+        Write-Output "No threats detected in $target"
 
     - name: Azure Login
       uses: azure/login@v2
@@ -90,6 +118,22 @@ jobs:
         $env:GOOS = "windows"
         $env:GOARCH = "amd64"
         go build -v -o kemforge.exe .
+
+    - name: Update Defender signatures
+      shell: pwsh
+      run: Update-MpSignature
+
+    - name: Scan executable for malware
+      shell: pwsh
+      run: |
+        $target = "$env:GITHUB_WORKSPACE\kemforge.exe"
+        Start-MpScan -ScanType CustomScan -ScanPath $target
+        $threats = Get-MpThreat
+        if ($threats) {
+          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
+          exit 1
+        }
+        Write-Output "No threats detected in $target"
 
     - name: Azure Login
       uses: azure/login@v2
@@ -178,6 +222,22 @@ jobs:
         $env:GOOS = "windows"
         $env:GOARCH = "amd64"
         go build -v -o kemforge.exe .
+
+    - name: Update Defender signatures
+      shell: pwsh
+      run: Update-MpSignature
+
+    - name: Scan executable for malware
+      shell: pwsh
+      run: |
+        $target = "$env:GITHUB_WORKSPACE\kemforge.exe"
+        Start-MpScan -ScanType CustomScan -ScanPath $target
+        $threats = Get-MpThreat
+        if ($threats) {
+          Write-Error "Malware detected in ${target}:`n$($threats | Format-List | Out-String)"
+          exit 1
+        }
+        Write-Output "No threats detected in $target"
 
     - name: Azure Login
       uses: azure/login@v2
