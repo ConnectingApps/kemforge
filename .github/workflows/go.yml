@@ -126,6 +126,145 @@ jobs:
       if: matrix.os != 'macos-latest' || github.ref_name == 'main' || endsWith(github.ref_name, '-macos') || endsWith(github.head_ref, '-macos')
       run: kemforge -I https://www.google.com
 
+  build_installer:
+    needs: [verify_install]
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.26'
+
+    - name: Build Windows binary
+      shell: pwsh
+      run: |
+        $env:GOOS = "windows"
+        $env:GOARCH = "amd64"
+        go build -v -o kemforge.exe .
+
+    - name: Create MSIX package
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path packaging/Assets
+
+        Copy-Item kemforge.exe packaging/kemforge.exe
+
+        Add-Type -AssemblyName System.Drawing
+        $sourceIcon = [System.Drawing.Image]::FromFile("snap/gui/icon.png")
+
+        foreach ($size in @(44, 48, 150, 256)) {
+          $bmp = New-Object System.Drawing.Bitmap $size, $size
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+          $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+          $g.DrawImage($sourceIcon, 0, 0, $size, $size)
+          $g.Dispose()
+          $bmp.Save("packaging/Assets/icon${size}x${size}.png", [System.Drawing.Imaging.ImageFormat]::Png)
+          $bmp.Dispose()
+        }
+
+        $bmp = New-Object System.Drawing.Bitmap 50, 50
+        $g = [System.Drawing.Graphics]::FromImage($bmp)
+        $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+        $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+        $g.DrawImage($sourceIcon, 0, 0, 50, 50)
+        $g.Dispose()
+        $bmp.Save("packaging/Assets/StoreLogo.png", [System.Drawing.Imaging.ImageFormat]::Png)
+        $bmp.Dispose()
+
+        $sourceIcon.Dispose()
+
+        $manifest = @'
+        <?xml version="1.0" encoding="utf-8"?>
+        <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+                 xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+                 xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+                 xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+                 xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+                 IgnorableNamespaces="uap uap3 desktop rescap">
+          <Identity Name="ConnectingApps.KemForge"
+                    Publisher="CN=Connecting Apps, O=Connecting Apps, STREET=Wagenstraat 83 D, L=Den Haag, S=Zuid-Holland, C=NL, PostalCode=2512AR"
+                    Version="1.3.2.0"
+                    ProcessorArchitecture="x64" />
+          <Properties>
+            <DisplayName>KemForge</DisplayName>
+            <PublisherDisplayName>ConnectingApps</PublisherDisplayName>
+            <Description>A curl-compatible CLI tool with Post-Quantum Cryptography support</Description>
+            <Logo>Assets\StoreLogo.png</Logo>
+          </Properties>
+          <Resources>
+            <Resource Language="en-us" />
+          </Resources>
+          <Dependencies>
+            <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+          </Dependencies>
+          <Applications>
+            <Application Id="KemForge" Executable="kemforge.exe" EntryPoint="Windows.FullTrustApplication">
+              <uap:VisualElements DisplayName="KemForge"
+                                  Description="KemForge CLI"
+                                  BackgroundColor="transparent"
+                                  Square150x150Logo="Assets\icon150x150.png"
+                                  Square44x44Logo="Assets\icon44x44.png" />
+              <Extensions>
+                <uap3:Extension Category="windows.appExecutionAlias">
+                  <uap3:AppExecutionAlias>
+                    <desktop:ExecutionAlias Alias="kemforge.exe" />
+                  </uap3:AppExecutionAlias>
+                </uap3:Extension>
+              </Extensions>
+            </Application>
+          </Applications>
+          <Capabilities>
+            <rescap:Capability Name="runFullTrust" />
+          </Capabilities>
+        </Package>
+        '@
+        $manifest | Set-Content -Path packaging/AppxManifest.xml -Encoding utf8
+
+        $makeappx = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\10.*\x64\makeappx.exe" |
+          Sort-Object FullName -Descending | Select-Object -First 1
+        & $makeappx.FullName pack /d packaging /p kemforge.msix /o
+
+    - name: Azure Login
+      uses: azure/login@v2
+      with:
+        creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
+
+    - name: Sign installer with Azure Trusted Signing
+      uses: azure/trusted-signing-action@v0.5.0
+      with:
+        azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+        endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+        trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+        certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+        files-folder: ${{ github.workspace }}
+        files-folder-filter: msix
+        file-digest: SHA256
+        timestamp-rfc3161: http://timestamp.acs.microsoft.com
+        timestamp-digest: SHA256
+
+    - name: Remove unsigned executable
+      shell: pwsh
+      run: Remove-Item kemforge.exe
+
+    - name: Install signed MSIX package
+      shell: pwsh
+      run: Add-AppxPackage -Path kemforge.msix
+
+    - name: Validate installation
+      shell: pwsh
+      run: kemforge --help
+
+    - name: Upload signed installer
+      uses: actions/upload-artifact@v6
+      with:
+        name: kemforge-installer-signed
+        path: kemforge.msix
+
   chocobuild:
     needs: [verify_install, publish_config]
     if: needs.publish_config.outputs.enabled == 'true' && github.ref_name == 'main'
@@ -310,20 +449,45 @@ jobs:
         $assets = '${{ steps.release.outputs.assets }}' | ConvertFrom-Json
         Write-Output "Download URL: $($assets[0].browser_download_url)"
 
+
   build_snap:
     needs: [verify_install]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
 
+    - name: Initialize snapd
+      run: |
+        sudo systemctl enable --now snapd
+        sudo snap wait system seed.loaded
+        # Solution 2: force snapd to update itself NOW, before action-build starts,
+        # so the "Waiting for automatic snapd restart..." stall cannot occur mid-build.
+        sudo snap install snapd
+        sudo snap wait system seed.loaded
+
+    # Set up LXD so snapcraft can use it as its build provider.
+    - name: Set up LXD
+      uses: canonical/setup-lxd@v0.1.2
+
+    # Install snapcraft via snap (classic confinement required).
     - name: Install snapcraft
       run: sudo snap install snapcraft --classic
 
+    # Use `snapcraft pack` explicitly — the new canonical command for the full
+    # build lifecycle in snapcraft 8.x, replacing the deprecated bare `snapcraft`.
     - name: Build snap
-      run: sudo snapcraft pack --destructive-mode
+      id: build
+      run: |
+        snapcraft pack --use-lxd
+        echo "snap=$(ls *.snap | head -1)" >> $GITHUB_OUTPUT
 
     - name: Install snap
-      run: sudo snap install --dangerous ./kemforge_*.snap
+      run: sudo snap install --dangerous ${{ steps.build.outputs.snap }}
+
+    # Step 3: Explicitly connect the network interface — `--dangerous` installs do
+    # not auto-connect plugs, so without this the smoke test is blocked by AppArmor.
+    - name: Connect network interface
+      run: sudo snap connect kemforge:network
 
     - name: Smoke test snap
       run: /snap/bin/kemforge -I https://www.google.com
@@ -332,7 +496,7 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: snap-package
-        path: kemforge_*.snap
+        path: ${{ steps.build.outputs.snap }}
 
   publish_snap:
     needs: [build_snap, publish_config]
