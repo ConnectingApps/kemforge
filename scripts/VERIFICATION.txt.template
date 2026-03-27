@@ -1,0 +1,12 @@
+VERIFICATION
+
+This package was built from source. The binary (kemforge.exe) was NOT downloaded
+from an external URL — it was compiled directly from the repository source code.
+
+Repository : https://github.com/ConnectingApps/kemforge
+Commit SHA : COMMIT_SHA_PLACEHOLDER
+Build command: go build -o kemforge.exe .
+
+To verify, clone the repository at the above commit and run the build command.
+The resulting kemforge.exe should match the one included in this package.
+

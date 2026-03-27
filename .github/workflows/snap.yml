@@ -1,0 +1,80 @@
+name: Snap Packaging
+
+on:
+  workflow_call:
+    inputs:
+      publish_enabled:
+        required: true
+        type: string
+
+jobs:
+
+  build_snap:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Initialize snapd
+      run: |
+        sudo systemctl enable --now snapd
+        sudo snap wait system seed.loaded
+        # Solution 2: force snapd to update itself NOW, before action-build starts,
+        # so the "Waiting for automatic snapd restart..." stall cannot occur mid-build.
+        sudo snap install snapd
+        sudo snap wait system seed.loaded
+
+    # Set up LXD so snapcraft can use it as its build provider.
+    - name: Set up LXD
+      uses: canonical/setup-lxd@v0.1.2
+
+    # Install snapcraft via snap (classic confinement required).
+    - name: Install snapcraft
+      run: sudo snap install snapcraft --classic
+
+    # Use `snapcraft pack` explicitly — the new canonical command for the full
+    # build lifecycle in snapcraft 8.x, replacing the deprecated bare `snapcraft`.
+    - name: Build snap
+      id: build
+      run: |
+        snapcraft pack --use-lxd
+        echo "snap=$(ls *.snap | head -1)" >> $GITHUB_OUTPUT
+
+    - name: Install snap
+      run: sudo snap install --dangerous ${{ steps.build.outputs.snap }}
+
+    # Step 3: Explicitly connect the network interface — `--dangerous` installs do
+    # not auto-connect plugs, so without this the smoke test is blocked by AppArmor.
+    - name: Connect network interface
+      run: sudo snap connect kemforge:network
+
+    - name: Smoke test snap
+      run: /snap/bin/kemforge -I https://www.google.com
+
+    - name: Upload snap artifact
+      uses: actions/upload-artifact@v6
+      with:
+        name: snap-package
+        path: ${{ steps.build.outputs.snap }}
+
+  publish_snap:
+    needs: [build_snap]
+    if: inputs.publish_enabled == 'true' && github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download snap artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: snap-package
+
+    - name: Resolve snap filename
+      id: find_snap
+      run: echo "snap=$(ls kemforge_*.snap)" >> $GITHUB_OUTPUT
+
+    - name: Publish snap to Snap Store
+      uses: snapcore/action-publish@v1
+      env:
+        SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+      with:
+        snap: ${{ steps.find_snap.outputs.snap }}
+        release: edge
+
