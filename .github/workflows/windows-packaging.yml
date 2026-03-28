@@ -204,6 +204,7 @@ jobs:
         choco push $pkg --source https://push.chocolatey.org/ --api-key $env:CHOCO_API_KEY
 
   release_windows:
+    if: inputs.publish_enabled == 'true' && github.ref_name == 'main'
     runs-on: windows-latest
     permissions:
       contents: write
