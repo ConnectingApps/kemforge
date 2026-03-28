@@ -1,12 +1,12 @@
-# KemForge
+# Kemforge
 
-**KemForge** is a modern, curl-compatible CLI tool for making web requests — built from the ground up with **Post-Quantum Cryptography (PQC)** support. It is the security-first successor to curl, designed to address the primary threat of the modern era: **quantum attacks**.
+**Kemforge** is a modern, curl-compatible CLI tool for making web requests — built from the ground up with **Post-Quantum Cryptography (PQC)** support. It is the security-first successor to curl, designed to address the primary threat of the modern era: **quantum attacks**.
 
 ---
 
 ## Table of Contents
 
-- [Why KemForge?](#why-kemforge)
+- [Why Kemforge?](#why-kemforge)
 - [TLS Data & PQC Feedback](#tls-data--pqc-feedback)
 - [Curl Feature Compatibility](#curl-feature-compatibility)
 - [Usage Examples](#usage-examples)
@@ -17,23 +17,23 @@
 
 ---
 
-## Why KemForge?
+## Why Kemforge?
 
 Traditional encryption algorithms (RSA, ECDH) that protect today's internet traffic are vulnerable to attacks by quantum computers. Adversaries are already harvesting encrypted data today with the intent to decrypt it once quantum computers become powerful enough — a strategy known as **"Harvest Now, Decrypt Later"**.
 
 **Post-Quantum Cryptography (PQC)** refers to cryptographic algorithms designed to be secure against both classical and quantum computers. Standards such as **ML-KEM** (Module-Lattice-Based Key Encapsulation Mechanism, formerly known as CRYSTALS-Kyber) have been standardized by NIST to replace vulnerable key exchange mechanisms.
 
-KemForge makes PQC accessible and effortless:
+Kemforge makes PQC accessible and effortless:
 
-- **No dependency on system TLS libraries** — Unlike curl, which relies on the installed version of Schannel (Windows), OpenSSL (Linux), or Secure Transport (macOS) for PQC support, KemForge provides PQC out of the box on every platform, regardless of the underlying TLS library version.
-- **Automatic PQC detection** — Every HTTPS request returns TLS metadata indicating whether PQC was used. If PQC is not negotiated, KemForge warns you that the server is not protected against quantum attacks.
-- **Drop-in curl replacement** — KemForge supports all common curl features and flags, so you can switch seamlessly.
+- **No dependency on system TLS libraries** — Unlike curl, which relies on the installed version of Schannel (Windows), OpenSSL (Linux), or Secure Transport (macOS) for PQC support, Kemforge provides PQC out of the box on every platform, regardless of the underlying TLS library version.
+- **Automatic PQC detection** — Every HTTPS request returns TLS metadata indicating whether PQC was used. If PQC is not negotiated, Kemforge warns you that the server is not protected against quantum attacks.
+- **Drop-in curl replacement** — Kemforge supports all common curl features and flags, so you can switch seamlessly.
 
 ---
 
 ## TLS Data & PQC Feedback
 
-Every HTTPS request made with KemForge outputs **TLS Data** to stderr, giving you immediate insight into the security of your connection:
+Every HTTPS request made with Kemforge outputs **TLS Data** to stderr, giving you immediate insight into the security of your connection:
 
 ```
 * TLS DATA:
@@ -53,13 +53,13 @@ If the server does **not** support PQC, you will see a warning:
 * This server is not protected against quantum attacks as the key exchange group does not contain MLKEM.
 ```
 
-> **Note:** If PQC is not used, it is caused by the server's configuration — not KemForge. KemForge always negotiates PQC when the server supports it.
+> **Note:** If PQC is not used, it is caused by the server's configuration — not Kemforge. Kemforge always negotiates PQC when the server supports it.
 
 ---
 
 ## Curl Feature Compatibility
 
-KemForge supports all common curl features, including but not limited to:
+Kemforge supports all common curl features, including but not limited to:
 
 | Feature | Flags |
 |---|---|
@@ -194,16 +194,16 @@ go install github.com/ConnectingApps/kemforge@latest
 
 ### macOS via `Homebrew`
 
-KemForge can be installed via [Homebrew](https://brew.sh). Open Terminal and run:
+Kemforge can be installed via [Homebrew](https://brew.sh). Open Terminal and run:
 
 ```bash
 brew tap ConnectingApps/kemforge
 brew install kemforge
 ```
 
-KemForge works on both Apple Silicon (M1/M2/M3/M4) and Intel Macs.
+Kemforge works on both Apple Silicon (M1/M2/M3/M4) and Intel Macs.
 
-### Windows
+### Windows via `go install`
 
 1. Install Go by downloading the installer from [https://go.dev/dl/](https://go.dev/dl/) and running it. The installer adds Go to your PATH automatically.
 
@@ -222,6 +222,14 @@ Then restart your terminal for the change to take effect.
 
 ```powershell
 go install github.com/ConnectingApps/kemforge@latest
+```
+
+### Windows via `winget`
+
+Kemforge can be installed via [winget](https://en.wikipedia.org/wiki/Windows_Package_Manager). Open Terminal and run:
+
+```bash
+winget install ConnectingApps.Kemforge
 ```
 
 ### After installation
@@ -248,11 +256,11 @@ This produces the `kemforge` binary (or `kemforge.exe` on Windows).
 
 ## Testing
 
-KemForge uses a two-stage testing strategy, as reflected in the CI/CD pipeline:
+Kemforge uses a two-stage testing strategy, as reflected in the CI/CD pipeline:
 
 ### Stage 1: Verify the test infrastructure against curl
 
-Before testing KemForge itself, the test script and Python test server are validated against standard `curl` to ensure the test harness is correct:
+Before testing Kemforge itself, the test script and Python test server are validated against standard `curl` to ensure the test harness is correct:
 
 ```bash
 # Create a Python virtual environment and install dependencies
@@ -264,17 +272,17 @@ python -m venv .venv
 pwsh -File test_curl.ps1 curl
 ```
 
-This step ensures that `test_curl.ps1` (the PowerShell test runner) and `test_server.py` (the local Flask test server) work correctly — any failure here is a problem with the test infrastructure, not KemForge.
+This step ensures that `test_curl.ps1` (the PowerShell test runner) and `test_server.py` (the local Flask test server) work correctly — any failure here is a problem with the test infrastructure, not Kemforge.
 
-### Stage 2: Build and test KemForge
+### Stage 2: Build and test Kemforge
 
-Once the test infrastructure is verified, KemForge is built and tested against the same test suite:
+Once the test infrastructure is verified, Kemforge is built and tested against the same test suite:
 
 ```bash
 # Build
 go build -v .
 
-# Run the same test suite against the KemForge binary
+# Run the same test suite against the Kemforge binary
 pwsh -File test_curl.ps1 ./kemforge          # Linux/macOS
 # pwsh -File test_curl.ps1 ./kemforge.exe    # Windows
 ```
@@ -289,7 +297,7 @@ The GitHub Actions pipeline (`.github/workflows/go.yml`) runs both stages across
 
 ## Sponsors
 
-KemForge is an open-source project that relies on community support. If you find KemForge useful, please consider sponsoring us on [Open Collective](https://opencollective.com/connecting-apps). Your sponsorship helps us maintain and improve the project — and as a sponsor, you can get your company logo featured right here on this README page.
+Kemforge is an open-source project that relies on community support. If you find Kemforge useful, please consider sponsoring us on [Open Collective](https://opencollective.com/connecting-apps). Your sponsorship helps us maintain and improve the project — and as a sponsor, you can get your company logo featured right here on this README page.
 
 ---
 
